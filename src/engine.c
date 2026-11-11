@@ -336,44 +336,19 @@ int load_position_from_fen(const char* fen, Position* position) {
 		// select piece type
 		Piece_Type pt;
 		switch (c) {
-			case 'r':
-				pt = BR;
-				break;
-			case 'n':
-				pt = BN;
-				break;
-			case 'b':
-				pt = BB;
-				break;
-			case 'q':
-				pt = BQ;
-				break;
-			case 'k':
-				pt = BK;
-				break;
-			case 'p':
-				pt = BP;
-				break;
-			case 'P':
-				pt = WP;
-				break;
-			case 'R':
-				pt = WR;
-				break;
-			case 'N':
-				pt = WN;
-				break;
-			case 'B':
-				pt = WB;
-				break;
-			case 'Q':
-				pt = WQ;
-				break;
-			case 'K':
-				pt = WK;
-				break;
+			case 'r': pt = BR; break;
+			case 'n': pt = BN; break;
+			case 'b': pt = BB; break;
+			case 'q': pt = BQ; break;
+			case 'k': pt = BK; break;
+			case 'p': pt = BP; break;
+			case 'P': pt = WP; break;
+			case 'R': pt = WR; break;
+			case 'N': pt = WN; break;
+			case 'B': pt = WB; break;
+			case 'Q': pt = WQ; break;
+			case 'K': pt = WK; break;
 			default:
-				// return failure if c is not a num 1-8
 				if (c < '1' || c > '8') return 1;
 				// handle empty squares
 				file += c - '0';
@@ -402,22 +377,12 @@ int load_position_from_fen(const char* fen, Position* position) {
 	c = fen[++string_pos];
 	while (c != ' ') {
 		switch (c) {
-			case 'K':
-				set_wk_castle(position);
-				break;
-			case 'Q':
-				set_wq_castle(position);
-				break;
-			case 'k':
-				set_bk_castle(position);
-				break;
-			case 'q':
-				set_bq_castle(position);
-				break;
-			case '-':
-				break;
-			default:
-				return 1;
+			case 'K': set_wk_castle(position); break;
+			case 'Q': set_wq_castle(position); break;
+			case 'k': set_bk_castle(position); break;
+			case 'q': set_bq_castle(position); break;
+			case '-': break;
+			default: return 1;
 		}
 		c = fen[++string_pos];
 	}
@@ -601,23 +566,15 @@ static void init_king_targets(void) {
 		Bitboard t = 0u;
 		const Bitboard b = (Bitboard)1u << s;
 
-		if (rank <= 6 && file <= 6)
-			t |= b << ur;
-		if (rank <= 6)
-			t |= b << u;
-		if (rank <= 6 && file >= 1)
-			t |= b << ul;
-		if (file <= 6)
-			t |= b << r;
+		if (rank <= 6 && file <= 6) 	t |= b << ur;
+		if (rank <= 6) 			t |= b << u;
+		if (rank <= 6 && file >= 1) 	t |= b << ul;
+		if (file <= 6) 			t |= b << r;
 
-		if (file >= 1)
-			t |= b >> l;
-		if (rank >= 1 && file <= 6)
-			t |= b >> dr;
-		if (rank >= 1)
-			t |= b >> d;
-		if (rank >= 1 && file >= 1)
-			t |= b >> dl;
+		if (file >= 1) 			t |= b >> l;
+		if (rank >= 1 && file <= 6) 	t |= b >> dr;
+		if (rank >= 1) 			t |= b >> d;
+		if (rank >= 1 && file >= 1) 	t |= b >> dl;
 
 		KING_TARGETS[s] = t;
 	}
@@ -642,23 +599,15 @@ static void init_knight_targets(void) {
 		Bitboard t = 0u;
 		const Bitboard b = (Bitboard)1u << s;
 
-		if (rank <= 5 && file <= 6)
-			t |= b << u2_r1;
-		if (rank <= 5 && file >= 1)
-			t |= b << u2_l1;
-		if (rank <= 6 && file <= 5)
-			t |= b << u1_r2;
-		if (rank <= 6 && file >= 2)
-			t |= b << u1_l2;
+		if (rank <= 5 && file <= 6) t |= b << u2_r1;
+		if (rank <= 5 && file >= 1) t |= b << u2_l1;
+		if (rank <= 6 && file <= 5) t |= b << u1_r2;
+		if (rank <= 6 && file >= 2) t |= b << u1_l2;
 
-		if (rank >= 1 && file <= 5)
-			t |= b >> d1_r2;
-		if (rank >= 1 && file >= 2)
-			t |= b >> d1_l2;
-		if (rank >= 2 && file <= 6)
-			t |= b >> d2_r1;
-		if (rank >= 2 && file >= 1)
-			t |= b >> d2_l1;
+		if (rank >= 1 && file <= 5) t |= b >> d1_r2;
+		if (rank >= 1 && file >= 2) t |= b >> d1_l2;
+		if (rank >= 2 && file <= 6) t |= b >> d2_r1;
+		if (rank >= 2 && file >= 1) t |= b >> d2_l1;
 
 		KNIGHT_TARGETS[s] = t;
 	}
@@ -691,48 +640,34 @@ static void init_pawn_targets(void) {
 		// there should never be a pawn on the 1st or 8th rank
 
 		// white pawns
-		if (rank == 1)
-			w_quiet_t |= b << u2;
-		if (rank >= 1 && rank <= 6)
-			w_quiet_t |= b << u;
-		if (rank >= 0 && rank <= 6 && file <= 6)
-			w_cap_t |= b << ur;
-		if (rank >= 0 && rank <= 6 && file >= 1)
-			w_cap_t |= b << ul;
+		if (rank == 1) 				 w_quiet_t |= b << u2;
+		if (rank >= 1 && rank <= 6) 		 w_quiet_t |= b << u;
+		if (rank >= 0 && rank <= 6 && file <= 6) w_cap_t |= b << ur;
+		if (rank >= 0 && rank <= 6 && file >= 1) w_cap_t |= b << ul;
 
 		PAWN_CAPTURE_TARGETS[WHITE][s] = w_cap_t;
 		PAWN_QUIET_TARGETS[WHITE][s] = w_quiet_t;
 
 		// black pawns
-		if (rank == 6)
-			b_quiet_t |= b >> d2;
-		if (rank <= 6 && rank >= 1)
-			b_quiet_t |= b >> d;
-		if (rank <= 7 && rank >= 1 && file <= 6)
-			b_cap_t |= b >> dr;
-		if (rank <= 7 && rank >= 1 && file >= 1)
-			b_cap_t |= b >> dl;
+		if (rank == 6)				 b_quiet_t |= b >> d2;
+		if (rank <= 6 && rank >= 1)		 b_quiet_t |= b >> d;
+		if (rank <= 7 && rank >= 1 && file <= 6) b_cap_t |= b >> dr;
+		if (rank <= 7 && rank >= 1 && file >= 1) b_cap_t |= b >> dl;
 
 		PAWN_CAPTURE_TARGETS[BLACK][s] = b_cap_t;
 		PAWN_QUIET_TARGETS[BLACK][s] = b_quiet_t;
-
 	}
 }
 
 static void init_sliding_targets(void) {
-	// straight line targets
 	// left shifts
 	const int u = 8;
 	const int r = 1;
-	// right shifts
-	const int d = 8;
-	const int l = 1;
-
-	// diagonal targets
-	// left shifts
 	const int ul = 7;
 	const int ur = 9;
 	// right shifts
+	const int d = 8;
+	const int l = 1;
 	const int dr = 7;
 	const int dl = 9;
 
@@ -946,7 +881,7 @@ typedef struct {
 	Piece_Type promo_pt;
 	unsigned int castle_type;
 	int need_safety_check;		// see if king is in check after move
-	// Bitfield state_field;	// preserves position state field
+					// Bitfield state_field;	// preserves position state field
 } Unpacked_Move;
 
 // used in ASSERT calls
@@ -1052,12 +987,12 @@ static void set_move_need_safety_check(Move* m, int nsc) {
 }
 
 /*
-static void set_move_state_copy(Move* m, U64 state) {
-	ASSERT(m);
-	ASSERT(!(state >> MOVE_STATE_COPY_SHIFT));
-	*m = (*m & ~MOVE_STATE_COPY) | ((U64)state << MOVE_STATE_COPY_SHIFT);
-}
-*/
+   static void set_move_state_copy(Move* m, U64 state) {
+   ASSERT(m);
+   ASSERT(!(state >> MOVE_STATE_COPY_SHIFT));
+ *m = (*m & ~MOVE_STATE_COPY) | ((U64)state << MOVE_STATE_COPY_SHIFT);
+ }
+ */
 
 // generate a packed Move bitfield from Unpacked_Move
 static Move pack_move(const Unpacked_Move* m) {
@@ -1134,7 +1069,7 @@ static int add_basic_capture(
 			0,
 			0u,
 			need_safety_check
-			//,position->state_field
+				//,position->state_field
 		};
 		move_list[moves_added++] = pack_move(&unpacked_move);
 	}
@@ -1183,7 +1118,7 @@ static int add_basic_quiet(
 			0,
 			0u,
 			need_safety_check
-			//,position->state_field
+				//,position->state_field
 		};
 		move_list[moves_added++] = pack_move(&unpacked_move);
 	}
@@ -1236,7 +1171,7 @@ static int add_castle_moves(
 			0,
 			WK_CASTLE_TYPE << (NUM_COLORS * side_to_move),
 			1
-			//,position->state_field
+				//,position->state_field
 		};
 		move_list[moves_added++] = pack_move(&unpacked_move);
 	}
@@ -1264,7 +1199,7 @@ static int add_castle_moves(
 			0,
 			WQ_CASTLE_TYPE << (NUM_COLORS * side_to_move),
 			1
-			//,position->state_field
+				//,position->state_field
 		};
 		move_list[moves_added++] = pack_move(&unpacked_move);
 	}
@@ -1308,7 +1243,7 @@ static int add_ep_capture(
 		0,
 		0u,
 		need_safety_check
-		//,position->state_field
+			//,position->state_field
 	};
 	*move_list = pack_move(&unpacked_move);
 	return 1;
@@ -1358,7 +1293,7 @@ static int add_promo_capture(
 			WQ + color_offset,
 			0u,
 			need_safety_check
-			//,position->state_field
+				//,position->state_field
 		};
 		move_list[moves_added++] = pack_move(&unpacked_move);
 
@@ -1416,7 +1351,7 @@ static int add_promo_quiet(
 			WQ + color_offset,
 			0u,
 			need_safety_check
-			//,position->state_field
+				//,position->state_field
 		};
 		move_list[moves_added++] = pack_move(&unpacked_move);
 
@@ -1834,6 +1769,11 @@ static void union_targets_from_ray(
 		const Ray_Targets* ray_targets, 
 		Bitboard* capture_targets,
 		Bitboard* quiet_targets) {
+
+	ASSERT(position);
+	ASSERT(ray_targets);
+	ASSERT(capture_targets);
+	ASSERT(quiet_targets);
 
 	Bitboard opp_color_pieces = 
 		position->color_boards[position->side_to_move ^ 1u];
@@ -2449,15 +2389,15 @@ int make_move(Position* position, Move move) {
 }
 
 /*
-void unmake_move(Position* position, Move move) {
-	// copy state
-	position->state_field = move >> MOVE_STATE_COPY_SHIFT;
-	// undo incremental update
-	position->side_to_move ^= 1u;
-	ASSERT(position->side_to_move == 0 || position->side_to_move == 1);
-	position->fullmoves -= position->side_to_move;
-	// undo bitboard
-	make_move_update_bitboards(position, move);
+   void unmake_move(Position* position, Move move) {
+// copy state
+position->state_field = move >> MOVE_STATE_COPY_SHIFT;
+// undo incremental update
+position->side_to_move ^= 1u;
+ASSERT(position->side_to_move == 0 || position->side_to_move == 1);
+position->fullmoves -= position->side_to_move;
+// undo bitboard
+make_move_update_bitboards(position, move);
 }
 */
 
