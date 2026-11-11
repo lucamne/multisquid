@@ -1,12 +1,16 @@
 #include "engine.h"
 
 #include <assert.h>
-#include <intrin.h> // for windows
-// #include <stdbit.h> // for non windows C23 conforming compiler
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
 
+// used for popcount and bitscan
+#ifdef WINDOWS
+#include <intrin.h> 
+#else
+#include <stdbit.h>
+#endif
 
 /*======================================================================
  * Internal Types and Constants
@@ -24,51 +28,56 @@ typedef enum {WP = 0, WN, WB, WR, WQ, WK, BP, BN, BB, BR, BQ, BK} Piece_Type;
 /*======================================================================
  * U64 bitwise operations
  *======================================================================*/
-static void clear_bit(U64* u, int b) {
-	ASSERT(u);
-	ASSERT(b >= 0 && b <= 63);
-	*u &= ~((U64)1u << b);
-}
-
 static U64 get_bit(U64 u, int b) {
 	ASSERT(b >= 0 && b <= 63);
 	return (u >> b) & (U64)1u;
 }
 
+// get value of a field in u of width w starting at bit b
 static U64 get_field(U64 u, int w, int b) {
 	ASSERT(w > 0 && w < 64);
 	ASSERT(b >= 0 && b <= 63);
 	ASSERT(b + w <= 64);
-
 	return (u >> b) & (((U64)1u << w) - 1);
 }
 
+// get least significant bit index
 static int get_ls1b(U64 u) {
 	ASSERT(u);
-	// stdc_first_trailing_zero_ull(b); // if using stdbit.
+	// TODO stdc_first_trailing_zero_ull(b); // if using stdbit.
 	unsigned long index;
+#ifdef WINDOWS
 	_BitScanForward64(&index, u);
+#endif
 	return index;
 }
 
+// get most significant bit index
 static int get_ms1b(U64 u) {
 	ASSERT(u);
-	// stdc_first_trailing_zero_ull(b); // if using stdbit.
+	// TODO stdc_first_trailing_zero_ull(b); // if using stdbit.
 	unsigned long index;
+#ifdef WINDOWS
 	_BitScanReverse64(&index, u);
+#endif
 	return index;
 }
 
 static int get_pop_count(U64 u) {
-	return (int)__popcnt64(u); // if using intrin.h
-	// return (int)stdc_count_ones(*b); // if using stdbit.h
+#ifdef WINDOWS
+	return (int)__popcnt64(u); 
+#endif
+	// TODO return (int)stdc_count_ones(*b); // if using stdbit.h
 }
 
+// populate list with indices of all '1' bits in u
 static int serialize(U64 u, unsigned int* list) {
-	// stdc_first_trailing_zero_ull(b); // if using stdbit.
+	// TODO stdc_first_trailing_zero_ull(b); // if using stdbit.
 	unsigned long index;
 	int count = 0;
+#ifdef WINDOWS
 	while(_BitScanForward64(&index, u)) {
+#endif
 		*list++ = index;
 		ASSERT((int)index >= 0 && (int)index <= 63);
 		u &= u - 1;
@@ -77,18 +86,13 @@ static int serialize(U64 u, unsigned int* list) {
 	return count;
 }
 
-static void set_all_bits(U64* u) {
-	ASSERT(u);
-	*u |= ~((U64)0u);
-}
-
 static void set_bit(U64* u, int b) {
 	ASSERT(u);
 	ASSERT(b >= 0 && b <= 63);
-
 	*u |= (U64)1u << b;
 }
 
+// set field in u of width w starting at bit b to value 
 static void set_field(U64* u, U64 value, int w, int b) {
 	ASSERT(u);
 	ASSERT(w > 0 && w < 64);
@@ -104,6 +108,8 @@ static void set_field(U64* u, U64 value, int w, int b) {
 
 /*======================================================================
  * Position
+ *
+ * load position and provide accessors/modifiers
  *======================================================================*/
 // Position state field constants
 #define POS_EP_ACTIVE_SHIFT 0
@@ -123,7 +129,6 @@ static const U64 POS_HALFMOVES = 0xffu << POS_HALFMOVES_SHIFT;
 
 static const int EMPTY_SQUARE = -1;
 static const U64 RANK_MASK = 0xff;
-
 static const int square_to_rank[NUM_SQUARES] = {
 	0, 0, 0, 0, 0, 0, 0, 0,
 	1, 1, 1, 1, 1, 1, 1, 1,
@@ -143,11 +148,11 @@ static const int square_to_file[NUM_SQUARES] = {
 	0, 1, 2, 3, 4, 5, 6, 7,
 	0, 1, 2, 3, 4, 5, 6, 7};
 
+// used in ASSERT checks
 static int is_valid_square(int square) { return square >= 0 && square <= 63; }
-static U64 get_square(Bitboard b, int square) { return get_bit(b, square); }
 static int is_valid_pt(Piece_Type pt) { return pt >= WP && pt <= BK; }
-static void set_square(Bitboard* b, int square) { set_bit(b, square); }
 
+// convert rank and file to square
 static int rf_to_sq(int rank, int file) { 
 	ASSERT(rank >= 0 && rank < NUM_RANKS);
 	ASSERT(file >= 0 && rank < NUM_FILES);
@@ -159,16 +164,16 @@ static Piece_Type get_piece_at_square(const Position* p, int square) {
 	ASSERT(is_valid_square(square));
 
 	for (Piece_Type pt = WP; pt <= BK; pt++) {
-		if (get_square(p->piece_boards[pt], square))
+		if (get_bit(p->piece_boards[pt], square))
 			return pt;
 	}
 
 	return EMPTY_SQUARE;
 }
 
+// return a Bitboard masked by rank
 static Bitboard get_rank(Bitboard b, int rank) {
 	ASSERT(rank >= 0 && rank < NUM_RANKS);
-
 	Bitboard mask = RANK_MASK << (rank * NUM_FILES);
 	return b & mask;
 }
@@ -176,57 +181,18 @@ static Bitboard get_rank(Bitboard b, int rank) {
 static void set_piece(Position* p, Piece_Type pt, int square) {
 	ASSERT(square >= 0 && square <= 63);
 	ASSERT(pt >= WP && pt <= BK);
-	set_square(p->piece_boards + pt, square);
+	set_bit(p->piece_boards + pt, square);
 }
 
-static int sq_to_rank(int square) { 
-	ASSERT(is_valid_square(square));
-	return square_to_rank[square];
-}
-
-static int sq_to_file(int square) { 
-	ASSERT(is_valid_square(square));
-	return square_to_file[square];
-}
-
-static void set_wk_castle(Position* p) {
+/* state field functions */
+static U64 get_ep_active(const Position* p) {
 	ASSERT(p);
-	p->state_field |= POS_WK_CASTLE;
+	return (p->state_field & POS_EP_ACTIVE) >> POS_EP_ACTIVE_SHIFT;
 }
 
-static void set_wq_castle(Position* p) {
+static U64 get_ep_square(const Position* p) {
 	ASSERT(p);
-	p->state_field |= POS_WQ_CASTLE;
-}
-
-static void set_bk_castle(Position* p) {
-	ASSERT(p);
-	p->state_field |= POS_BK_CASTLE;
-}
-
-static void set_bq_castle(Position* p) {
-	ASSERT(p);
-	p->state_field |= POS_BQ_CASTLE;
-}
-
-static void clear_wk_castle(Position* p) {
-	ASSERT(p);
-	p->state_field &= ~POS_WK_CASTLE;
-}
-
-static void clear_wq_castle(Position* p) {
-	ASSERT(p);
-	p->state_field &= ~POS_WQ_CASTLE;
-}
-
-static void clear_bk_castle(Position* p) {
-	ASSERT(p);
-	p->state_field &= ~POS_BK_CASTLE;
-}
-
-static void clear_bq_castle(Position* p) {
-	ASSERT(p);
-	p->state_field &= ~POS_BQ_CASTLE;
+	return (p->state_field & POS_EP_SQUARE) >> POS_EP_SQUARE_SHIFT;
 }
 
 static U64 get_wk_castle(const Position* p) {
@@ -249,9 +215,9 @@ static U64 get_bq_castle(const Position* p) {
 	return (p->state_field & POS_BQ_CASTLE) >> POS_BQ_CASTLE_SHIFT;
 }
 
-static void set_ep_active(Position* p) {
+static U64 get_halfmoves(const Position* p) {
 	ASSERT(p);
-	p->state_field |= POS_EP_ACTIVE;
+	return (p->state_field & POS_HALFMOVES) >> POS_HALFMOVES_SHIFT;
 }
 
 static void clear_ep_active(Position* p) {
@@ -259,9 +225,9 @@ static void clear_ep_active(Position* p) {
 	p->state_field &= ~POS_EP_ACTIVE;
 }
 
-static U64 get_ep_active(const Position* p) {
+static void set_ep_active(Position* p) {
 	ASSERT(p);
-	return (p->state_field & POS_EP_ACTIVE) >> POS_EP_ACTIVE_SHIFT;
+	p->state_field |= POS_EP_ACTIVE;
 }
 
 static void set_ep_square(Position* p, int square) {
@@ -272,9 +238,44 @@ static void set_ep_square(Position* p, int square) {
 		((U64)square << POS_EP_SQUARE_SHIFT);
 }
 
-static U64 get_ep_square(const Position* p) {
+static void clear_wk_castle(Position* p) {
 	ASSERT(p);
-	return (p->state_field & POS_EP_SQUARE) >> POS_EP_SQUARE_SHIFT;
+	p->state_field &= ~POS_WK_CASTLE;
+}
+
+static void clear_wq_castle(Position* p) {
+	ASSERT(p);
+	p->state_field &= ~POS_WQ_CASTLE;
+}
+
+static void clear_bk_castle(Position* p) {
+	ASSERT(p);
+	p->state_field &= ~POS_BK_CASTLE;
+}
+
+static void clear_bq_castle(Position* p) {
+	ASSERT(p);
+	p->state_field &= ~POS_BQ_CASTLE;
+}
+
+static void set_wk_castle(Position* p) {
+	ASSERT(p);
+	p->state_field |= POS_WK_CASTLE;
+}
+
+static void set_wq_castle(Position* p) {
+	ASSERT(p);
+	p->state_field |= POS_WQ_CASTLE;
+}
+
+static void set_bk_castle(Position* p) {
+	ASSERT(p);
+	p->state_field |= POS_BK_CASTLE;
+}
+
+static void set_bq_castle(Position* p) {
+	ASSERT(p);
+	p->state_field |= POS_BQ_CASTLE;
 }
 
 static void set_halfmoves(Position* p, int halfmoves) {
@@ -284,12 +285,6 @@ static void set_halfmoves(Position* p, int halfmoves) {
 	p->state_field = (b & ~POS_HALFMOVES) | 
 		((U64)halfmoves << POS_HALFMOVES_SHIFT);
 }
-
-static U64 get_halfmoves(const Position* p) {
-	ASSERT(p);
-	return (p->state_field & POS_HALFMOVES) >> POS_HALFMOVES_SHIFT;
-}
-
 
 // get kingside castle bit of current side to move
 static U64 get_kingside_castle(const Position* p) {
@@ -305,14 +300,26 @@ static U64 get_queenside_castle(const Position* p) {
 	return p->state_field & (POS_WQ_CASTLE << castle_bit_offset);
 }
 
+static int sq_to_rank(int square) { 
+	ASSERT(is_valid_square(square));
+	return square_to_rank[square];
+}
+
+static int sq_to_file(int square) { 
+	ASSERT(is_valid_square(square));
+	return square_to_file[square];
+}
+
 int load_position_from_fen(const char* fen, Position* position) {
 	ASSERT(fen);
 	ASSERT(position);
-	int string_pos = -1;
 
-	// parse out position games to bitboards
+	*position = (Position){0};
+
+	int string_pos = -1;
 	int rank = 7;
 	int file = 0;
+	// loop through fen
 	while (1) {
 		char c = fen[++string_pos];
 
@@ -373,13 +380,10 @@ int load_position_from_fen(const char* fen, Position* position) {
 				continue;
 		}
 
-		// update bitboard, increment file
 		set_piece(position, pt, rf_to_sq(rank, file));
 		file++;
 	}
 
-	////////////////
-	// Get Aux Data
 	// set side to move
 	char c = fen[++string_pos];
 	switch (c) {
@@ -423,11 +427,9 @@ int load_position_from_fen(const char* fen, Position* position) {
 	if (c >= 'a' && c <= 'h') {
 		file = c - 'a';
 		c = fen[++string_pos];
-
 		// error if rank is not 1-8
 		if (c < '1' || c > '8') return 1;
 		rank = c - '1';
-
 		set_ep_active(position);
 		set_ep_square(position, rf_to_sq(rank, file));
 	} else if (c == '-') {
@@ -450,7 +452,6 @@ int load_position_from_fen(const char* fen, Position* position) {
 		for(int i = 0; i < num_len - 1; i++) mult *= 10;
 		halfmove_sum += mult * (fen[string_pos++] - '0');
 	}
-
 	set_halfmoves(position, halfmove_sum);
 
 	// get fullmove clock
@@ -469,14 +470,12 @@ int load_position_from_fen(const char* fen, Position* position) {
 		for(int i = 0; i < num_len - 1; i++) mult *= 10;
 		fullmove_sum += mult * (fen[string_pos++] - '0');
 	}
-
 	position->fullmoves = fullmove_sum;
 
 	// init color_boards
 	Bitboard white_pieces = 0u;
 	Bitboard black_pieces = 0u;
 	Piece_Type pt;
-
 	for (pt = WP; pt < BP; pt++) {
 		white_pieces |= position->piece_boards[pt];
 	}
@@ -495,13 +494,16 @@ int load_position_from_fen(const char* fen, Position* position) {
 
 /*======================================================================
  * Targets
+ *
+ * provide precomputed bitboard targets of each piece at each square
  *======================================================================*/
+// use to compute sliding piece rays
 typedef enum { POS_RAY = 0, NEG_RAY } Ray_Dir;
 typedef struct {
 	Bitboard ray_mask;			// all possible ray targets
 	Bitboard quiet_targets[NUM_SQUARES];	// quiet targetes indexed by first blocker
 	Bitboard capture_target[NUM_SQUARES];	// possible capture target indexed by first blocker
-	Ray_Dir dir;				// ray direction 
+	Ray_Dir dir;				// ray direction (+/-)
 } Ray_Targets;
 
 // target arrays
@@ -518,7 +520,6 @@ static Ray_Targets RAY_UP_RIGHT[NUM_SQUARES];
 static Ray_Targets RAY_DOWN_LEFT[NUM_SQUARES];
 static Ray_Targets RAY_DOWN_RIGHT[NUM_SQUARES];
 
-// target functions
 static Bitboard get_king_targets(int src) {
 	ASSERT(is_valid_square(src));
 	return KING_TARGETS[src];
@@ -888,6 +889,7 @@ static void init_sliding_targets(void) {
 	}
 }
 
+// call once during engine initialization
 static void init_targets(void) {
 	init_knight_targets();
 	init_king_targets();
@@ -898,9 +900,13 @@ static void init_targets(void) {
 
 /*======================================================================
  * Move
+ *
+ * provides move generation and move making functions
  *======================================================================*/
 #define MOVE_LIST_SIZE 256
 #define NUM_SLIDING_TYPES_PER_SIDE 3
+
+// castle field constants
 #define NO_CASTLE_TYPE 0u
 #define WK_CASTLE_TYPE 0b1u
 #define WQ_CASTLE_TYPE 0b10u
@@ -939,10 +945,57 @@ typedef struct {
 	int is_promo;
 	Piece_Type promo_pt;
 	unsigned int castle_type;
-	int need_safety_check;
-	Bitfield state_field;
+	int need_safety_check;		// see if king is in check after move
+	// Bitfield state_field;	// preserves position state field
 } Unpacked_Move;
 
+// used in ASSERT calls
+static int is_valid_castle_type(unsigned int castle_type) {
+	return castle_type == NO_CASTLE_TYPE || 
+		castle_type == WK_CASTLE_TYPE || 
+		castle_type == WQ_CASTLE_TYPE || 
+		castle_type == BK_CASTLE_TYPE || 
+		castle_type == BQ_CASTLE_TYPE;
+}
+
+/* packed move getters */
+static U64 get_move_src(Move m) {
+	return (m & MOVE_SRC) >> MOVE_SRC_SHIFT;
+}
+
+static U64 get_move_dest(Move m) {
+	return (m & MOVE_DEST) >> MOVE_DEST_SHIFT;
+}
+
+static U64 get_move_src_pt(Move m) {
+	return (m & MOVE_SRC_PT) >> MOVE_SRC_PT_SHIFT;
+}
+
+static U64 get_move_promo_pt(Move m) {
+	return (m & MOVE_PROMO_PT) >> MOVE_PROMO_PT_SHIFT;
+}
+
+static U64 get_move_is_promo(Move m) {
+	return !!(m & MOVE_IS_PROMO);
+}
+
+static U64 get_move_is_capture(Move m) {
+	return !!(m & MOVE_IS_CAP);
+}
+
+static U64 get_move_cap_pt(Move m) {
+	return (m & MOVE_CAP_PT) >> MOVE_CAP_PT_SHIFT;
+}
+
+static U64 get_move_need_safety_check(Move m) {
+	return (m & MOVE_NEED_SAFETY_CHECK) >> MOVE_NEED_SAFETY_CHECK_SHIFT;
+}
+
+static U64 get_move_castle_type(Move m) {
+	return (m & MOVE_CASTLE_TYPE) >> MOVE_CASTLE_TYPE_SHIFT;
+}
+
+/* pack move setters */
 static void set_move_src(Move* m, int square) {
 	ASSERT(m);
 	ASSERT(is_valid_square(square));
@@ -985,14 +1038,6 @@ static void set_move_promo_pt(Move* m, Piece_Type pt) {
 	*m = (*m & ~MOVE_PROMO_PT) | ((U64)pt << MOVE_PROMO_PT_SHIFT);
 }
 
-static int is_valid_castle_type(unsigned int castle_type) {
-	return castle_type == NO_CASTLE_TYPE || 
-		castle_type == WK_CASTLE_TYPE || 
-		castle_type == WQ_CASTLE_TYPE || 
-		castle_type == BK_CASTLE_TYPE || 
-		castle_type == BQ_CASTLE_TYPE;
-}
-
 static void set_move_castle_type(Move* m, unsigned int castle_type) {
 	ASSERT(m);
 	ASSERT(is_valid_castle_type(castle_type));
@@ -1006,47 +1051,13 @@ static void set_move_need_safety_check(Move* m, int nsc) {
 	*m |= (U64)nsc << MOVE_NEED_SAFETY_CHECK_SHIFT;
 }
 
+/*
 static void set_move_state_copy(Move* m, U64 state) {
 	ASSERT(m);
 	ASSERT(!(state >> MOVE_STATE_COPY_SHIFT));
 	*m = (*m & ~MOVE_STATE_COPY) | ((U64)state << MOVE_STATE_COPY_SHIFT);
 }
-
-static U64 get_move_src(Move m) {
-	return (m & MOVE_SRC) >> MOVE_SRC_SHIFT;
-}
-
-static U64 get_move_dest(Move m) {
-	return (m & MOVE_DEST) >> MOVE_DEST_SHIFT;
-}
-
-static U64 get_move_src_pt(Move m) {
-	return (m & MOVE_SRC_PT) >> MOVE_SRC_PT_SHIFT;
-}
-
-static U64 get_move_promo_pt(Move m) {
-	return (m & MOVE_PROMO_PT) >> MOVE_PROMO_PT_SHIFT;
-}
-
-static U64 get_move_is_promo(Move m) {
-	return !!(m & MOVE_IS_PROMO);
-}
-
-static U64 get_move_is_capture(Move m) {
-	return !!(m & MOVE_IS_CAP);
-}
-
-static U64 get_move_cap_pt(Move m) {
-	return (m & MOVE_CAP_PT) >> MOVE_CAP_PT_SHIFT;
-}
-
-static U64 get_move_need_safety_check(Move m) {
-	return (m & MOVE_NEED_SAFETY_CHECK) >> MOVE_NEED_SAFETY_CHECK_SHIFT;
-}
-
-static U64 get_move_castle_type(Move m) {
-	return (m & MOVE_CASTLE_TYPE) >> MOVE_CASTLE_TYPE_SHIFT;
-}
+*/
 
 // generate a packed Move bitfield from Unpacked_Move
 static Move pack_move(const Unpacked_Move* m) {
@@ -1077,11 +1088,11 @@ static Move pack_move(const Unpacked_Move* m) {
 	set_move_promo_pt(&move, m->promo_pt);
 	set_move_castle_type(&move, m->castle_type);
 	set_move_need_safety_check(&move, m->need_safety_check);
-	set_move_state_copy(&move, m->state_field);
+	// set_move_state_copy(&move, m->state_field);
 	return move;
 }
 
-// add a move from a 'targets' bitboard to a move list
+// add a move from a 'targets' bitboard to move list
 // moves will be added to index 0 of move_list
 // move is assumed to be a standard capture 
 // 	(not promo, not en_passant, not castle)
@@ -1122,8 +1133,8 @@ static int add_basic_capture(
 			0,
 			0,
 			0u,
-			need_safety_check,
-			position->state_field
+			need_safety_check
+			//,position->state_field
 		};
 		move_list[moves_added++] = pack_move(&unpacked_move);
 	}
@@ -1171,13 +1182,12 @@ static int add_basic_quiet(
 			0,
 			0,
 			0u,
-			need_safety_check,
-			position->state_field
+			need_safety_check
+			//,position->state_field
 		};
 		move_list[moves_added++] = pack_move(&unpacked_move);
 	}
 	return moves_added;
-
 }
 
 // add castle moves if possible
@@ -1202,6 +1212,8 @@ static int add_castle_moves(
 	Bitboard king_castle = get_kingside_castle(position);
 	Bitboard queen_castle = get_queenside_castle(position);
 
+	// add kingside castle if side has the right and intermediate squares
+	// are empty
 	if (king_castle && !(occupied & king_castle_mask)) {
 		ASSERT(
 				(!side_to_move && 
@@ -1223,11 +1235,13 @@ static int add_castle_moves(
 			0,
 			0,
 			WK_CASTLE_TYPE << (NUM_COLORS * side_to_move),
-			1,
-			position->state_field
+			1
+			//,position->state_field
 		};
 		move_list[moves_added++] = pack_move(&unpacked_move);
 	}
+	// add queenside castle if side has the right and intermediate squares
+	// are empty
 	if (queen_castle && !(occupied & queen_castle_mask)) {
 		ASSERT(
 				(!side_to_move && 
@@ -1249,8 +1263,8 @@ static int add_castle_moves(
 			0,
 			0,
 			WQ_CASTLE_TYPE << (NUM_COLORS * side_to_move),
-			1,
-			position->state_field
+			1
+			//,position->state_field
 		};
 		move_list[moves_added++] = pack_move(&unpacked_move);
 	}
@@ -1274,22 +1288,14 @@ static int add_ep_capture(
 	ASSERT(is_valid_square(src));
 
 	if (!targets) return 0;
+
 	int side_to_move = position->side_to_move;
-
-	// serialiaze target bitboard into target array
-	int moves_added = 0;
-	unsigned int target_squares[NUM_SQUARES];
-	int target_count = serialize(
-			targets, 
-			target_squares);
-	ASSERT(target_count == 1);
-
-	int dest = target_squares[0];
-	ASSERT(dest == get_ep_square(position));
-
+	int dest = get_ls1b(targets);
 	Piece_Type cap_pt = get_piece_at_square(
 			position, 
 			dest - NUM_FILES + (2 * NUM_FILES * side_to_move));
+
+	ASSERT(dest == get_ep_square(position));
 	ASSERT(cap_pt == WP || cap_pt == BP);
 
 	Unpacked_Move unpacked_move = {
@@ -1301,11 +1307,11 @@ static int add_ep_capture(
 		0,
 		0,
 		0u,
-		need_safety_check,
-		position->state_field
+		need_safety_check
+		//,position->state_field
 	};
-	move_list[moves_added++] = pack_move(&unpacked_move);
-	return moves_added;
+	*move_list = pack_move(&unpacked_move);
+	return 1;
 }
 
 // add a move from a 'targets' bitboard to a move list
@@ -1351,8 +1357,8 @@ static int add_promo_capture(
 			1,
 			WQ + color_offset,
 			0u,
-			need_safety_check,
-			position->state_field
+			need_safety_check
+			//,position->state_field
 		};
 		move_list[moves_added++] = pack_move(&unpacked_move);
 
@@ -1409,8 +1415,8 @@ static int add_promo_quiet(
 			1,
 			WQ + color_offset,
 			0u,
-			need_safety_check,
-			position->state_field
+			need_safety_check
+			//,position->state_field
 		};
 		move_list[moves_added++] = pack_move(&unpacked_move);
 
@@ -1442,23 +1448,18 @@ static void gen_king_moves(
 	ASSERT(num_tact_moves);
 	ASSERT(num_quiet_moves);
 
-	// select king by color
 	int side_to_move = (int)position->side_to_move;
 	Piece_Type pt = WK + side_to_move * COLOR_OFFSET;
-
 	Bitboard same_color_pieces = position->color_boards[side_to_move];
 	Bitboard opp_color_pieces = position->color_boards[side_to_move ^ 1u];
-
 	int src = get_ls1b(position->piece_boards[pt]);
 	ASSERT(src);
 
 	// get legal targets
 	Bitboard targets = get_king_targets(src);
 	targets &= ~same_color_pieces;
-
 	// remove squares where king is definitely in check
 	targets &= ~opp_disjoint_targets;
-
 	// seperate captures and quiet moves
 	Bitboard capture_targets = targets & opp_color_pieces;
 	Bitboard quiet_targets = targets ^ capture_targets;
@@ -2447,6 +2448,7 @@ int make_move(Position* position, Move move) {
 	return 0;
 }
 
+/*
 void unmake_move(Position* position, Move move) {
 	// copy state
 	position->state_field = move >> MOVE_STATE_COPY_SHIFT;
@@ -2457,7 +2459,7 @@ void unmake_move(Position* position, Move move) {
 	// undo bitboard
 	make_move_update_bitboards(position, move);
 }
-
+*/
 
 /*======================================================================
  * Initialization

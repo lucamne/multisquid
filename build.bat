@@ -21,7 +21,7 @@ if "%~1"=="-p" (
 )
 
 REM set flags
-set CFLAGS=/nologo /W4 /DENGINE_VERSION=\"0.1.0\" /GL
+set CFLAGS=/nologo /W4 /GL /DWINDOWS
 
 if "%RELEASE%"=="1" (
     set CFLAGS=%CFLAGS% /O2 /DNDEBUG
@@ -36,13 +36,7 @@ if "%RELEASE%"=="1" (
     echo Building Debug
 )
 
-REM ensure correct directory and compile
-REM ******Uncomment this for work pc****** 
-cd C:\Users\lnegris\source\repos\multisquid
-
-REM ******This is for Luca's XPS laptop
-REM cd C:\Users\negri\source\repos\multisquid
-
+REM compile
 cl %CFLAGS% %SOURCES% /Fe:"%OUTPUT%" /link /INCREMENTAL:NO
 if errorlevel 1 (
     echo Build failed

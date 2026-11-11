@@ -90,7 +90,5 @@ long long int run_perft(const char* fen, int max_depth);
 // return nodes found at max depth
 void run_perft_validation(void);
 // run a perft validation sweet to validate move generator
-void unmake_move(Position* position, Move move);
-// undo move to position
 
 #endif

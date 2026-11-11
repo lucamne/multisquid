@@ -7,10 +7,9 @@ Design
 - lazy SMP on basic ab pruning (asp windows, iterative deepening, shared tt table)
 
 TODO
-- make unmake moves
-	- king safety checking
+- move
 	- seperate king moves into those that do or dont need safety check
-	- could skip a few safety checks when castling
-- perft testing
+	- decided what to do with move unmaking
+	- decide what to do with move->state_field stuff
 - organize my big old file
-- compiler flag for windows stdbit
+	- currently mid refactoring move

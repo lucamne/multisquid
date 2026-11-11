@@ -18,7 +18,7 @@ static const int DEST_W = 6;
 
 int main(int argc, char** argv) {
 	init_engine();
-	run_perft(STARTING_FEN, 7);
+	run_perft(STARTING_FEN, 8);
 	// run_perft_validation();
 
 	return 0;
