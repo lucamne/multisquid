@@ -1,0 +1,16 @@
+Multisquid is intended to be a cleaner and multithreaded version of squid
+
+Design
+- bitboard board representation
+- pseudo-legal move generator
+- incremental evaluation during make move for piece_square tables?
+- lazy SMP on basic ab pruning (asp windows, iterative deepening, shared tt table)
+
+TODO
+- make unmake moves
+	- king safety checking
+	- seperate king moves into those that do or dont need safety check
+	- could skip a few safety checks when castling
+- perft testing
+- organize my big old file
+- compiler flag for windows stdbit
