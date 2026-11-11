@@ -15,5 +15,5 @@ TODO
 	- decide what to do with move unmaking
 		- decide what to do with move->state_field stuff
 		- if not unmaking, pack side to move and full move
-- organize my big old file
-	- currently mid refactoring move
+- shell
+	- so i don't have to recompile all the time to test different stuff
