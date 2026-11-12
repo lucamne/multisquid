@@ -2,3 +2,4 @@
 bin/
 profiling_data/
 *.exe
+*.pdb
