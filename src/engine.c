@@ -125,7 +125,7 @@ static const U64 POS_HALFMOVES = 0xffu << POS_HALFMOVES_SHIFT;
 
 static const int EMPTY_SQUARE = -1;
 static const U64 RANK_MASK = 0xff;
-static const int square_to_rank[NUM_SQUARES] = {
+static const int SQUARE_TO_RANK[NUM_SQUARES] = {
 	0, 0, 0, 0, 0, 0, 0, 0,
 	1, 1, 1, 1, 1, 1, 1, 1,
 	2, 2, 2, 2, 2, 2, 2, 2,
@@ -134,7 +134,7 @@ static const int square_to_rank[NUM_SQUARES] = {
 	5, 5, 5, 5, 5, 5, 5, 5,
 	6, 6, 6, 6, 6, 6, 6, 6,
 	7, 7, 7, 7, 7, 7, 7, 7};
-static const int square_to_file[NUM_SQUARES] = {
+static const int SQUARE_TO_FILE[NUM_SQUARES] = {
 	0, 1, 2, 3, 4, 5, 6, 7,
 	0, 1, 2, 3, 4, 5, 6, 7,
 	0, 1, 2, 3, 4, 5, 6, 7,
@@ -143,6 +143,12 @@ static const int square_to_file[NUM_SQUARES] = {
 	0, 1, 2, 3, 4, 5, 6, 7,
 	0, 1, 2, 3, 4, 5, 6, 7,
 	0, 1, 2, 3, 4, 5, 6, 7};
+
+/* incremental eval constants */
+// all values in centipawns from white's pov
+static const int PIECE_VALUES[NUM_PIECE_TYPES] = {
+	 100,	 350, 	350, 	525, 	1000, 	10000,
+	-100, 	-350,  -350,   -525,   -1000,  -10000};
 
 // used in ASSERT checks
 static int is_valid_square(int square) { return square >= 0 && square <= 63; }
@@ -298,12 +304,12 @@ static U64 get_queenside_castle(const Position* p) {
 
 static int sq_to_rank(int square) { 
 	ASSERT(is_valid_square(square));
-	return square_to_rank[square];
+	return SQUARE_TO_RANK[square];
 }
 
 static int sq_to_file(int square) { 
 	ASSERT(is_valid_square(square));
-	return square_to_file[square];
+	return SQUARE_TO_FILE[square];
 }
 
 int load_position_from_fen(const char* fen, Position* position) {
@@ -350,7 +356,10 @@ int load_position_from_fen(const char* fen, Position* position) {
 				file += c - '0';
 				continue;
 		}
+		// update eval
+		position->eval += PIECE_VALUES[pt];
 
+		// add piece to bitboard
 		set_piece(position, pt, rf_to_sq(rank, file));
 		file++;
 	}

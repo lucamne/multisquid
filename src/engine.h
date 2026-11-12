@@ -43,6 +43,8 @@ typedef struct {
 	// 10		= Black queenside castle
 	// 11-18	= halfmove clock
 
+	// eval in centipawns calulated incrementally by make_move
+	int eval;
 } Position;
 
 typedef U64 Move;
