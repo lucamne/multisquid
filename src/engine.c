@@ -15,6 +15,9 @@
 /*======================================================================
  * Internal Types and Constants
  *======================================================================*/
+#ifdef WINDOWS
+#define NOINLINE __declspec(noinline)
+#endif
 #define ASSERT(x) assert((x))
 #define NUM_SQUARES 64
 #define NUM_FILES 8
@@ -857,6 +860,42 @@ static const U64 MOVE_PROMO_PT = 0xfu << MOVE_PROMO_PT_SHIFT;
 static const U64 MOVE_CASTLE_TYPE = 0xfu << MOVE_CASTLE_TYPE_SHIFT;
 static const U64 MOVE_NEED_SAFETY_CHECK = 0x1u << MOVE_NEED_SAFETY_CHECK_SHIFT;
 static const U64 MOVE_STATE_COPY = 0x7ffffu << MOVE_STATE_COPY_SHIFT;
+
+// indexed by square, & the output of updater[src] and updater[dest] to
+// position->state_field to update castle rights
+static const U64 castle_rights_updater[NUM_SQUARES] = {
+	~((U64)0x2 << POS_WK_CASTLE_SHIFT), ~((U64)0x0 << POS_WK_CASTLE_SHIFT),
+	~((U64)0x0 << POS_WK_CASTLE_SHIFT), ~((U64)0x0 << POS_WK_CASTLE_SHIFT),
+	~((U64)0x3 << POS_WK_CASTLE_SHIFT), ~((U64)0x0 << POS_WK_CASTLE_SHIFT),
+	~((U64)0x0 << POS_WK_CASTLE_SHIFT), ~((U64)0x1 << POS_WK_CASTLE_SHIFT),
+	~((U64)0x0 << POS_WK_CASTLE_SHIFT), ~((U64)0x0 << POS_WK_CASTLE_SHIFT),
+	~((U64)0x0 << POS_WK_CASTLE_SHIFT), ~((U64)0x0 << POS_WK_CASTLE_SHIFT),
+	~((U64)0x0 << POS_WK_CASTLE_SHIFT), ~((U64)0x0 << POS_WK_CASTLE_SHIFT),
+	~((U64)0x0 << POS_WK_CASTLE_SHIFT), ~((U64)0x0 << POS_WK_CASTLE_SHIFT),
+	~((U64)0x0 << POS_WK_CASTLE_SHIFT), ~((U64)0x0 << POS_WK_CASTLE_SHIFT),
+	~((U64)0x0 << POS_WK_CASTLE_SHIFT), ~((U64)0x0 << POS_WK_CASTLE_SHIFT),
+	~((U64)0x0 << POS_WK_CASTLE_SHIFT), ~((U64)0x0 << POS_WK_CASTLE_SHIFT),
+	~((U64)0x0 << POS_WK_CASTLE_SHIFT), ~((U64)0x0 << POS_WK_CASTLE_SHIFT),
+	~((U64)0x0 << POS_WK_CASTLE_SHIFT), ~((U64)0x0 << POS_WK_CASTLE_SHIFT),
+	~((U64)0x0 << POS_WK_CASTLE_SHIFT), ~((U64)0x0 << POS_WK_CASTLE_SHIFT),
+	~((U64)0x0 << POS_WK_CASTLE_SHIFT), ~((U64)0x0 << POS_WK_CASTLE_SHIFT),
+	~((U64)0x0 << POS_WK_CASTLE_SHIFT), ~((U64)0x0 << POS_WK_CASTLE_SHIFT),
+	~((U64)0x0 << POS_WK_CASTLE_SHIFT), ~((U64)0x0 << POS_WK_CASTLE_SHIFT),
+	~((U64)0x0 << POS_WK_CASTLE_SHIFT), ~((U64)0x0 << POS_WK_CASTLE_SHIFT),
+	~((U64)0x0 << POS_WK_CASTLE_SHIFT), ~((U64)0x0 << POS_WK_CASTLE_SHIFT),
+	~((U64)0x0 << POS_WK_CASTLE_SHIFT), ~((U64)0x0 << POS_WK_CASTLE_SHIFT),
+	~((U64)0x0 << POS_WK_CASTLE_SHIFT), ~((U64)0x0 << POS_WK_CASTLE_SHIFT),
+	~((U64)0x0 << POS_WK_CASTLE_SHIFT), ~((U64)0x0 << POS_WK_CASTLE_SHIFT),
+	~((U64)0x0 << POS_WK_CASTLE_SHIFT), ~((U64)0x0 << POS_WK_CASTLE_SHIFT),
+	~((U64)0x0 << POS_WK_CASTLE_SHIFT), ~((U64)0x0 << POS_WK_CASTLE_SHIFT),
+	~((U64)0x0 << POS_WK_CASTLE_SHIFT), ~((U64)0x0 << POS_WK_CASTLE_SHIFT),
+	~((U64)0x0 << POS_WK_CASTLE_SHIFT), ~((U64)0x0 << POS_WK_CASTLE_SHIFT),
+	~((U64)0x0 << POS_WK_CASTLE_SHIFT), ~((U64)0x0 << POS_WK_CASTLE_SHIFT),
+	~((U64)0x0 << POS_WK_CASTLE_SHIFT), ~((U64)0x0 << POS_WK_CASTLE_SHIFT),
+	~((U64)0x8 << POS_WK_CASTLE_SHIFT), ~((U64)0x0 << POS_WK_CASTLE_SHIFT),
+	~((U64)0x0 << POS_WK_CASTLE_SHIFT), ~((U64)0x0 << POS_WK_CASTLE_SHIFT),
+	~((U64)0xc << POS_WK_CASTLE_SHIFT), ~((U64)0x0 << POS_WK_CASTLE_SHIFT),
+	~((U64)0x0 << POS_WK_CASTLE_SHIFT), ~((U64)0x4 << POS_WK_CASTLE_SHIFT)};
 
 // passed to pack_move to generate a Move bitfield
 typedef struct {
@@ -2280,14 +2319,6 @@ int make_move(Position* position, Move move) {
 	int src = (int)get_move_src(move);
 	int dest = (int)get_move_dest(move);
 
-	// constant for castling checks
-	const int WK_SQUARE = 4;
-	const int WRK_SQUARE = 7;
-	const int WRQ_SQUARE = 0;
-	const int BK_SQUARE = 60;
-	const int BRK_SQUARE = 63;
-	const int BRQ_SQUARE = 56;
-
 	// swap src and dest on bitboards
 	make_move_update_bitboards(position, move);
 
@@ -2302,6 +2333,8 @@ int make_move(Position* position, Move move) {
 	}
 
 	// test castle move is fully legal
+	const int WK_SQUARE = 4;
+	const int BK_SQUARE = 60;
 	U64 castle_type = get_move_castle_type(move);
 	if (castle_type) {
 		// can't castle out of check
@@ -2354,7 +2387,7 @@ int make_move(Position* position, Move move) {
 	// incremental updates
 	ASSERT(side_to_move == 1 || side_to_move == 0);
 	position->fullmoves += side_to_move;
-	position->side_to_move = side_to_move ^ 1u;
+	position->side_to_move ^= 1u;
 
 	// update ep square
 	if (src_pt == WP + COLOR_OFFSET * side_to_move &&
@@ -2366,14 +2399,7 @@ int make_move(Position* position, Move move) {
 	}
 
 	// update castle rights
-	if (src == WK_SQUARE || src == WRK_SQUARE || dest == WRK_SQUARE)
-		clear_wk_castle(position);
-	if (src == WK_SQUARE || src == WRQ_SQUARE || dest == WRQ_SQUARE)
-		clear_wq_castle(position);
-	if (src == BK_SQUARE || src == BRK_SQUARE || dest == BRK_SQUARE)
-		clear_bk_castle(position);
-	if (src == BK_SQUARE || src == BRQ_SQUARE || dest == BRQ_SQUARE)
-		clear_bq_castle(position);
+	position->state_field &= castle_rights_updater[src] & castle_rights_updater[dest];
 
 	// update halfmoves
 	if (get_move_is_capture(move) || src_pt == WP + COLOR_OFFSET * side_to_move)
