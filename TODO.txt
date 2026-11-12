@@ -8,9 +8,6 @@ Design
 
 TODO
 - move
-	- clean castle checking in make move
-	- better method needed to update castle rights
-	- try to remove some branching
 	- seperate king moves into those that do or dont need safety check
 	- decide what to do with move unmaking
 		- decide what to do with move->state_field stuff

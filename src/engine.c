@@ -2197,7 +2197,6 @@ static int is_square_attacked(const Position* position, int square, int side) {
 
 	Bitboard occupied = position->occupied_board;
 	const Bitboard* piece_boards = position->piece_boards;
-	const Ray_Targets* ray;
 	Bitboard targets;
 	Piece_Type pt0, pt1;
 
@@ -2226,9 +2225,16 @@ static int is_square_attacked(const Position* position, int square, int side) {
 	pt1 = WQ + COLOR_OFFSET * side;
 	Bitboard straight_line_board = piece_boards[pt0] | piece_boards[pt1];
 
-	if (straight_line_board) {
-		ray = get_ray_up(square);
-		targets = ray->ray_mask & occupied;
+	const Ray_Targets* ray_up = get_ray_up(square);
+	const Ray_Targets* ray_down = get_ray_down(square);
+	const Ray_Targets* ray_left = get_ray_left(square);
+	const Ray_Targets* ray_right = get_ray_right(square);
+	Bitboard straight_rays = 
+		ray_up->ray_mask | ray_down->ray_mask | 
+		ray_left->ray_mask | ray_right->ray_mask;
+
+	if (straight_rays & straight_line_board) {
+		targets = ray_up->ray_mask & occupied;
 		if (targets) {
 			int blocker = get_ls1b(targets);
 			if (get_bit(straight_line_board, blocker)){
@@ -2236,8 +2242,7 @@ static int is_square_attacked(const Position* position, int square, int side) {
 			}
 		}
 
-		ray = get_ray_right(square);
-		targets = ray->ray_mask & occupied;
+		targets = ray_right->ray_mask & occupied;
 		if (targets) {
 			int blocker = get_ls1b(targets);
 			if (get_bit(straight_line_board, blocker)) {
@@ -2245,8 +2250,7 @@ static int is_square_attacked(const Position* position, int square, int side) {
 			}
 		}
 
-		ray = get_ray_left(square);
-		targets = ray->ray_mask & occupied;
+		targets = ray_left->ray_mask & occupied;
 		if (targets) {
 			int blocker = get_ms1b(targets);
 			if (get_bit(straight_line_board, blocker)) {
@@ -2254,8 +2258,7 @@ static int is_square_attacked(const Position* position, int square, int side) {
 			}
 		}
 
-		ray = get_ray_down(square);
-		targets = ray->ray_mask & occupied;
+		targets = ray_down->ray_mask & occupied;
 		if (targets) {
 			int blocker = get_ms1b(targets);
 			if (get_bit(straight_line_board, blocker)) {
@@ -2270,9 +2273,16 @@ static int is_square_attacked(const Position* position, int square, int side) {
 	pt1 = WQ + COLOR_OFFSET * side;
 	Bitboard diagonal_board = piece_boards[pt0] | piece_boards[pt1];
 
-	if (diagonal_board) {
-		ray = get_ray_up_right(square);
-		targets = ray->ray_mask & occupied;
+	const Ray_Targets* ray_up_right = get_ray_up_right(square);
+	const Ray_Targets* ray_up_left = get_ray_up_left(square);
+	const Ray_Targets* ray_down_right = get_ray_down_right(square);
+	const Ray_Targets* ray_down_left = get_ray_down_left(square);
+	Bitboard diag_rays = 
+		ray_up_right->ray_mask | ray_up_left->ray_mask | 
+		ray_down_right->ray_mask | ray_down_left->ray_mask;
+
+	if (diag_rays & diagonal_board) {
+		targets = ray_up_right->ray_mask & occupied;
 		if (targets) {
 			int blocker = get_ls1b(targets);
 			if (get_bit(diagonal_board, blocker)) {
@@ -2280,8 +2290,7 @@ static int is_square_attacked(const Position* position, int square, int side) {
 			}
 		}
 
-		ray = get_ray_up_left(square);
-		targets = ray->ray_mask & occupied;
+		targets = ray_up_left->ray_mask & occupied;
 		if (targets) {
 			int blocker = get_ls1b(targets);
 			if (get_bit(diagonal_board, blocker)) {
@@ -2289,8 +2298,7 @@ static int is_square_attacked(const Position* position, int square, int side) {
 			}
 		}
 
-		ray = get_ray_down_right(square);
-		targets = ray->ray_mask & occupied;
+		targets = ray_down_right->ray_mask & occupied;
 		if (targets) {
 			int blocker = get_ms1b(targets);
 			if (get_bit(diagonal_board, blocker)) {
@@ -2298,8 +2306,7 @@ static int is_square_attacked(const Position* position, int square, int side) {
 			}
 		}
 
-		ray = get_ray_down_left(square);
-		targets = ray->ray_mask & occupied;
+		targets = ray_down_left->ray_mask & occupied;
 		if (targets) {
 			int blocker = get_ms1b(targets);
 			if (get_bit(diagonal_board, blocker)) {
