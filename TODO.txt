@@ -8,8 +8,8 @@ Design
 
 TODO
 - move
-	- seperate king moves into those that do or dont need safety check
-	- decided what to do with move unmaking
-	- decide what to do with move->state_field stuff
-- organize my big old file
-	- currently mid refactoring move
+	- decide what to do with move unmaking
+		- decide what to do with move->state_field stuff
+		- if not unmaking, pack side to move and full move
+- shell
+	- so i don't have to recompile all the time to test different stuff

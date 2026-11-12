@@ -27,10 +27,7 @@ typedef struct {
 	unsigned int side_to_move;
 	int fullmoves;
 	Bitboard color_boards[NUM_COLORS];
-	// Bitboard same_color_pieces;
-	// Bitboard opp_color_pieces;
-	Bitboard occupied_board;
-	// bitboard of all occupied squares on the board (white | black)
+	Bitboard occupied_board;		// all occupied squares (white | black)
 	
 	/* Set and Copied on Make/Unmake Move */
 	Bitfield state_field;
@@ -65,7 +62,7 @@ typedef U64 Move;
 // 31-49	= position state field
 
 /*======================================================================
- * API
+ * Functions
  *======================================================================*/
 void init_engine(void);
 // initializes engine

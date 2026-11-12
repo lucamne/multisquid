@@ -15,6 +15,9 @@
 /*======================================================================
  * Internal Types and Constants
  *======================================================================*/
+#ifdef WINDOWS
+#define NOINLINE __declspec(noinline)
+#endif
 #define ASSERT(x) assert((x))
 #define NUM_SQUARES 64
 #define NUM_FILES 8
@@ -25,20 +28,13 @@
 #define COLOR_OFFSET 6	// BP-WP=6,...,BK-WK=6
 typedef enum {WP = 0, WN, WB, WR, WQ, WK, BP, BN, BB, BR, BQ, BK} Piece_Type;
 
+
 /*======================================================================
  * U64 bitwise operations
  *======================================================================*/
 static U64 get_bit(U64 u, int b) {
 	ASSERT(b >= 0 && b <= 63);
 	return (u >> b) & (U64)1u;
-}
-
-// get value of a field in u of width w starting at bit b
-static U64 get_field(U64 u, int w, int b) {
-	ASSERT(w > 0 && w < 64);
-	ASSERT(b >= 0 && b <= 63);
-	ASSERT(b + w <= 64);
-	return (u >> b) & (((U64)1u << w) - 1);
 }
 
 // get least significant bit index
@@ -336,44 +332,19 @@ int load_position_from_fen(const char* fen, Position* position) {
 		// select piece type
 		Piece_Type pt;
 		switch (c) {
-			case 'r':
-				pt = BR;
-				break;
-			case 'n':
-				pt = BN;
-				break;
-			case 'b':
-				pt = BB;
-				break;
-			case 'q':
-				pt = BQ;
-				break;
-			case 'k':
-				pt = BK;
-				break;
-			case 'p':
-				pt = BP;
-				break;
-			case 'P':
-				pt = WP;
-				break;
-			case 'R':
-				pt = WR;
-				break;
-			case 'N':
-				pt = WN;
-				break;
-			case 'B':
-				pt = WB;
-				break;
-			case 'Q':
-				pt = WQ;
-				break;
-			case 'K':
-				pt = WK;
-				break;
+			case 'r': pt = BR; break;
+			case 'n': pt = BN; break;
+			case 'b': pt = BB; break;
+			case 'q': pt = BQ; break;
+			case 'k': pt = BK; break;
+			case 'p': pt = BP; break;
+			case 'P': pt = WP; break;
+			case 'R': pt = WR; break;
+			case 'N': pt = WN; break;
+			case 'B': pt = WB; break;
+			case 'Q': pt = WQ; break;
+			case 'K': pt = WK; break;
 			default:
-				// return failure if c is not a num 1-8
 				if (c < '1' || c > '8') return 1;
 				// handle empty squares
 				file += c - '0';
@@ -387,14 +358,9 @@ int load_position_from_fen(const char* fen, Position* position) {
 	// set side to move
 	char c = fen[++string_pos];
 	switch (c) {
-		case 'w':
-			position->side_to_move = WHITE;
-			break;
-		case 'b':
-			position->side_to_move = BLACK;
-			break;
-		default:
-			return 1;
+		case 'w': position->side_to_move = WHITE; break;
+		case 'b': position->side_to_move = BLACK; break;
+		default:  return 1;
 	}
 
 	// set castle rights, expect to be zeroed initially
@@ -402,22 +368,12 @@ int load_position_from_fen(const char* fen, Position* position) {
 	c = fen[++string_pos];
 	while (c != ' ') {
 		switch (c) {
-			case 'K':
-				set_wk_castle(position);
-				break;
-			case 'Q':
-				set_wq_castle(position);
-				break;
-			case 'k':
-				set_bk_castle(position);
-				break;
-			case 'q':
-				set_bq_castle(position);
-				break;
-			case '-':
-				break;
-			default:
-				return 1;
+			case 'K': set_wk_castle(position); break;
+			case 'Q': set_wq_castle(position); break;
+			case 'k': set_bk_castle(position); break;
+			case 'q': set_bq_castle(position); break;
+			case '-': break;
+			default: return 1;
 		}
 		c = fen[++string_pos];
 	}
@@ -601,23 +557,15 @@ static void init_king_targets(void) {
 		Bitboard t = 0u;
 		const Bitboard b = (Bitboard)1u << s;
 
-		if (rank <= 6 && file <= 6)
-			t |= b << ur;
-		if (rank <= 6)
-			t |= b << u;
-		if (rank <= 6 && file >= 1)
-			t |= b << ul;
-		if (file <= 6)
-			t |= b << r;
+		if (rank <= 6 && file <= 6) 	t |= b << ur;
+		if (rank <= 6) 			t |= b << u;
+		if (rank <= 6 && file >= 1) 	t |= b << ul;
+		if (file <= 6) 			t |= b << r;
 
-		if (file >= 1)
-			t |= b >> l;
-		if (rank >= 1 && file <= 6)
-			t |= b >> dr;
-		if (rank >= 1)
-			t |= b >> d;
-		if (rank >= 1 && file >= 1)
-			t |= b >> dl;
+		if (file >= 1) 			t |= b >> l;
+		if (rank >= 1 && file <= 6) 	t |= b >> dr;
+		if (rank >= 1) 			t |= b >> d;
+		if (rank >= 1 && file >= 1) 	t |= b >> dl;
 
 		KING_TARGETS[s] = t;
 	}
@@ -642,23 +590,15 @@ static void init_knight_targets(void) {
 		Bitboard t = 0u;
 		const Bitboard b = (Bitboard)1u << s;
 
-		if (rank <= 5 && file <= 6)
-			t |= b << u2_r1;
-		if (rank <= 5 && file >= 1)
-			t |= b << u2_l1;
-		if (rank <= 6 && file <= 5)
-			t |= b << u1_r2;
-		if (rank <= 6 && file >= 2)
-			t |= b << u1_l2;
+		if (rank <= 5 && file <= 6) t |= b << u2_r1;
+		if (rank <= 5 && file >= 1) t |= b << u2_l1;
+		if (rank <= 6 && file <= 5) t |= b << u1_r2;
+		if (rank <= 6 && file >= 2) t |= b << u1_l2;
 
-		if (rank >= 1 && file <= 5)
-			t |= b >> d1_r2;
-		if (rank >= 1 && file >= 2)
-			t |= b >> d1_l2;
-		if (rank >= 2 && file <= 6)
-			t |= b >> d2_r1;
-		if (rank >= 2 && file >= 1)
-			t |= b >> d2_l1;
+		if (rank >= 1 && file <= 5) t |= b >> d1_r2;
+		if (rank >= 1 && file >= 2) t |= b >> d1_l2;
+		if (rank >= 2 && file <= 6) t |= b >> d2_r1;
+		if (rank >= 2 && file >= 1) t |= b >> d2_l1;
 
 		KNIGHT_TARGETS[s] = t;
 	}
@@ -691,48 +631,34 @@ static void init_pawn_targets(void) {
 		// there should never be a pawn on the 1st or 8th rank
 
 		// white pawns
-		if (rank == 1)
-			w_quiet_t |= b << u2;
-		if (rank >= 1 && rank <= 6)
-			w_quiet_t |= b << u;
-		if (rank >= 0 && rank <= 6 && file <= 6)
-			w_cap_t |= b << ur;
-		if (rank >= 0 && rank <= 6 && file >= 1)
-			w_cap_t |= b << ul;
+		if (rank == 1) 				 w_quiet_t |= b << u2;
+		if (rank >= 1 && rank <= 6) 		 w_quiet_t |= b << u;
+		if (rank >= 0 && rank <= 6 && file <= 6) w_cap_t |= b << ur;
+		if (rank >= 0 && rank <= 6 && file >= 1) w_cap_t |= b << ul;
 
 		PAWN_CAPTURE_TARGETS[WHITE][s] = w_cap_t;
 		PAWN_QUIET_TARGETS[WHITE][s] = w_quiet_t;
 
 		// black pawns
-		if (rank == 6)
-			b_quiet_t |= b >> d2;
-		if (rank <= 6 && rank >= 1)
-			b_quiet_t |= b >> d;
-		if (rank <= 7 && rank >= 1 && file <= 6)
-			b_cap_t |= b >> dr;
-		if (rank <= 7 && rank >= 1 && file >= 1)
-			b_cap_t |= b >> dl;
+		if (rank == 6)				 b_quiet_t |= b >> d2;
+		if (rank <= 6 && rank >= 1)		 b_quiet_t |= b >> d;
+		if (rank <= 7 && rank >= 1 && file <= 6) b_cap_t |= b >> dr;
+		if (rank <= 7 && rank >= 1 && file >= 1) b_cap_t |= b >> dl;
 
 		PAWN_CAPTURE_TARGETS[BLACK][s] = b_cap_t;
 		PAWN_QUIET_TARGETS[BLACK][s] = b_quiet_t;
-
 	}
 }
 
 static void init_sliding_targets(void) {
-	// straight line targets
 	// left shifts
 	const int u = 8;
 	const int r = 1;
-	// right shifts
-	const int d = 8;
-	const int l = 1;
-
-	// diagonal targets
-	// left shifts
 	const int ul = 7;
 	const int ur = 9;
 	// right shifts
+	const int d = 8;
+	const int l = 1;
 	const int dr = 7;
 	const int dl = 9;
 
@@ -935,6 +861,42 @@ static const U64 MOVE_CASTLE_TYPE = 0xfu << MOVE_CASTLE_TYPE_SHIFT;
 static const U64 MOVE_NEED_SAFETY_CHECK = 0x1u << MOVE_NEED_SAFETY_CHECK_SHIFT;
 static const U64 MOVE_STATE_COPY = 0x7ffffu << MOVE_STATE_COPY_SHIFT;
 
+// indexed by square, & the output of updater[src] and updater[dest] to
+// position->state_field to update castle rights
+static const U64 castle_rights_updater[NUM_SQUARES] = {
+	~((U64)0x2 << POS_WK_CASTLE_SHIFT), ~((U64)0x0 << POS_WK_CASTLE_SHIFT),
+	~((U64)0x0 << POS_WK_CASTLE_SHIFT), ~((U64)0x0 << POS_WK_CASTLE_SHIFT),
+	~((U64)0x3 << POS_WK_CASTLE_SHIFT), ~((U64)0x0 << POS_WK_CASTLE_SHIFT),
+	~((U64)0x0 << POS_WK_CASTLE_SHIFT), ~((U64)0x1 << POS_WK_CASTLE_SHIFT),
+	~((U64)0x0 << POS_WK_CASTLE_SHIFT), ~((U64)0x0 << POS_WK_CASTLE_SHIFT),
+	~((U64)0x0 << POS_WK_CASTLE_SHIFT), ~((U64)0x0 << POS_WK_CASTLE_SHIFT),
+	~((U64)0x0 << POS_WK_CASTLE_SHIFT), ~((U64)0x0 << POS_WK_CASTLE_SHIFT),
+	~((U64)0x0 << POS_WK_CASTLE_SHIFT), ~((U64)0x0 << POS_WK_CASTLE_SHIFT),
+	~((U64)0x0 << POS_WK_CASTLE_SHIFT), ~((U64)0x0 << POS_WK_CASTLE_SHIFT),
+	~((U64)0x0 << POS_WK_CASTLE_SHIFT), ~((U64)0x0 << POS_WK_CASTLE_SHIFT),
+	~((U64)0x0 << POS_WK_CASTLE_SHIFT), ~((U64)0x0 << POS_WK_CASTLE_SHIFT),
+	~((U64)0x0 << POS_WK_CASTLE_SHIFT), ~((U64)0x0 << POS_WK_CASTLE_SHIFT),
+	~((U64)0x0 << POS_WK_CASTLE_SHIFT), ~((U64)0x0 << POS_WK_CASTLE_SHIFT),
+	~((U64)0x0 << POS_WK_CASTLE_SHIFT), ~((U64)0x0 << POS_WK_CASTLE_SHIFT),
+	~((U64)0x0 << POS_WK_CASTLE_SHIFT), ~((U64)0x0 << POS_WK_CASTLE_SHIFT),
+	~((U64)0x0 << POS_WK_CASTLE_SHIFT), ~((U64)0x0 << POS_WK_CASTLE_SHIFT),
+	~((U64)0x0 << POS_WK_CASTLE_SHIFT), ~((U64)0x0 << POS_WK_CASTLE_SHIFT),
+	~((U64)0x0 << POS_WK_CASTLE_SHIFT), ~((U64)0x0 << POS_WK_CASTLE_SHIFT),
+	~((U64)0x0 << POS_WK_CASTLE_SHIFT), ~((U64)0x0 << POS_WK_CASTLE_SHIFT),
+	~((U64)0x0 << POS_WK_CASTLE_SHIFT), ~((U64)0x0 << POS_WK_CASTLE_SHIFT),
+	~((U64)0x0 << POS_WK_CASTLE_SHIFT), ~((U64)0x0 << POS_WK_CASTLE_SHIFT),
+	~((U64)0x0 << POS_WK_CASTLE_SHIFT), ~((U64)0x0 << POS_WK_CASTLE_SHIFT),
+	~((U64)0x0 << POS_WK_CASTLE_SHIFT), ~((U64)0x0 << POS_WK_CASTLE_SHIFT),
+	~((U64)0x0 << POS_WK_CASTLE_SHIFT), ~((U64)0x0 << POS_WK_CASTLE_SHIFT),
+	~((U64)0x0 << POS_WK_CASTLE_SHIFT), ~((U64)0x0 << POS_WK_CASTLE_SHIFT),
+	~((U64)0x0 << POS_WK_CASTLE_SHIFT), ~((U64)0x0 << POS_WK_CASTLE_SHIFT),
+	~((U64)0x0 << POS_WK_CASTLE_SHIFT), ~((U64)0x0 << POS_WK_CASTLE_SHIFT),
+	~((U64)0x0 << POS_WK_CASTLE_SHIFT), ~((U64)0x0 << POS_WK_CASTLE_SHIFT),
+	~((U64)0x8 << POS_WK_CASTLE_SHIFT), ~((U64)0x0 << POS_WK_CASTLE_SHIFT),
+	~((U64)0x0 << POS_WK_CASTLE_SHIFT), ~((U64)0x0 << POS_WK_CASTLE_SHIFT),
+	~((U64)0xc << POS_WK_CASTLE_SHIFT), ~((U64)0x0 << POS_WK_CASTLE_SHIFT),
+	~((U64)0x0 << POS_WK_CASTLE_SHIFT), ~((U64)0x4 << POS_WK_CASTLE_SHIFT)};
+
 // passed to pack_move to generate a Move bitfield
 typedef struct {
 	int src;
@@ -946,7 +908,7 @@ typedef struct {
 	Piece_Type promo_pt;
 	unsigned int castle_type;
 	int need_safety_check;		// see if king is in check after move
-	// Bitfield state_field;	// preserves position state field
+					// Bitfield state_field;	// preserves position state field
 } Unpacked_Move;
 
 // used in ASSERT calls
@@ -1052,12 +1014,12 @@ static void set_move_need_safety_check(Move* m, int nsc) {
 }
 
 /*
-static void set_move_state_copy(Move* m, U64 state) {
-	ASSERT(m);
-	ASSERT(!(state >> MOVE_STATE_COPY_SHIFT));
-	*m = (*m & ~MOVE_STATE_COPY) | ((U64)state << MOVE_STATE_COPY_SHIFT);
-}
-*/
+   static void set_move_state_copy(Move* m, U64 state) {
+   ASSERT(m);
+   ASSERT(!(state >> MOVE_STATE_COPY_SHIFT));
+ *m = (*m & ~MOVE_STATE_COPY) | ((U64)state << MOVE_STATE_COPY_SHIFT);
+ }
+ */
 
 // generate a packed Move bitfield from Unpacked_Move
 static Move pack_move(const Unpacked_Move* m) {
@@ -1134,7 +1096,7 @@ static int add_basic_capture(
 			0,
 			0u,
 			need_safety_check
-			//,position->state_field
+				//,position->state_field
 		};
 		move_list[moves_added++] = pack_move(&unpacked_move);
 	}
@@ -1183,7 +1145,7 @@ static int add_basic_quiet(
 			0,
 			0u,
 			need_safety_check
-			//,position->state_field
+				//,position->state_field
 		};
 		move_list[moves_added++] = pack_move(&unpacked_move);
 	}
@@ -1236,7 +1198,7 @@ static int add_castle_moves(
 			0,
 			WK_CASTLE_TYPE << (NUM_COLORS * side_to_move),
 			1
-			//,position->state_field
+				//,position->state_field
 		};
 		move_list[moves_added++] = pack_move(&unpacked_move);
 	}
@@ -1264,7 +1226,7 @@ static int add_castle_moves(
 			0,
 			WQ_CASTLE_TYPE << (NUM_COLORS * side_to_move),
 			1
-			//,position->state_field
+				//,position->state_field
 		};
 		move_list[moves_added++] = pack_move(&unpacked_move);
 	}
@@ -1308,7 +1270,7 @@ static int add_ep_capture(
 		0,
 		0u,
 		need_safety_check
-		//,position->state_field
+			//,position->state_field
 	};
 	*move_list = pack_move(&unpacked_move);
 	return 1;
@@ -1347,6 +1309,7 @@ static int add_promo_capture(
 		Piece_Type cap_pt = get_piece_at_square(position, dest);
 		ASSERT(is_valid_pt(cap_pt));
 
+		// insert move for each promo type
 		int color_offset = COLOR_OFFSET * position->side_to_move;
 		Unpacked_Move unpacked_move = {
 			src,
@@ -1358,7 +1321,7 @@ static int add_promo_capture(
 			WQ + color_offset,
 			0u,
 			need_safety_check
-			//,position->state_field
+				//,position->state_field
 		};
 		move_list[moves_added++] = pack_move(&unpacked_move);
 
@@ -1405,6 +1368,7 @@ static int add_promo_quiet(
 	for (int j = 0; j < target_count; j++) {
 		int dest = target_squares[j];
 
+		// insert move for each promo type
 		int color_offset = COLOR_OFFSET * position->side_to_move;
 		Unpacked_Move unpacked_move = {
 			src,
@@ -1416,7 +1380,7 @@ static int add_promo_quiet(
 			WQ + color_offset,
 			0u,
 			need_safety_check
-			//,position->state_field
+				//,position->state_field
 		};
 		move_list[moves_added++] = pack_move(&unpacked_move);
 
@@ -1452,6 +1416,7 @@ static void gen_king_moves(
 	Piece_Type pt = WK + side_to_move * COLOR_OFFSET;
 	Bitboard same_color_pieces = position->color_boards[side_to_move];
 	Bitboard opp_color_pieces = position->color_boards[side_to_move ^ 1u];
+
 	int src = get_ls1b(position->piece_boards[pt]);
 	ASSERT(src);
 
@@ -1460,7 +1425,6 @@ static void gen_king_moves(
 	targets &= ~same_color_pieces;
 	// remove squares where king is definitely in check
 	targets &= ~opp_disjoint_targets;
-	// seperate captures and quiet moves
 	Bitboard capture_targets = targets & opp_color_pieces;
 	Bitboard quiet_targets = targets ^ capture_targets;
 
@@ -1503,11 +1467,10 @@ static void gen_knight_moves(
 	ASSERT(num_tact_moves);
 	ASSERT(num_quiet_moves);
 
-	// get knight by color
 	int side_to_move = (int)position->side_to_move;
 	Piece_Type pt = WN + side_to_move * COLOR_OFFSET;
-
 	Bitboard knight_board = position->piece_boards[pt];
+
 	if (!knight_board) return;
 
 	int need_safety_check = king_in_check || king_xrayed;
@@ -1525,8 +1488,6 @@ static void gen_knight_moves(
 		// get legal targets
 		Bitboard targets = get_knight_targets(src);
 		targets &= ~same_color_pieces;
-
-		// seperate captures and quiet moves
 		Bitboard capture_targets = targets & opp_color_pieces;
 
 		*num_tact_moves += add_basic_capture(
@@ -1586,7 +1547,7 @@ static void gen_pawn_promos(
 	for (int i = 0; i < piece_count; i++) {
 		int src = piece_squares[i];
 
-		// get capture_targets
+		// capture_targets
 		Bitboard capture_targets = 
 			get_pawn_capture_targets(side_to_move, src);
 		capture_targets &= opp_color_pieces;
@@ -1600,7 +1561,7 @@ static void gen_pawn_promos(
 				need_safety_check);
 
 		if (!king_in_check) {
-			// get quiet_targets
+			// quiet_targets
 			Bitboard quiet_targets = 
 				get_pawn_quiet_targets(side_to_move, src);
 			quiet_targets &= ~occupied;
@@ -1642,9 +1603,8 @@ static void gen_pawn_standard_moves(
 	// extract ranks 3 through 6
 	// ranks 2 and 7 are handled in special pawn generators
 	// in a legal position pawns cannot be on 1 and 8
-	Bitboard pawn_board = position->piece_boards[pt];
-	pawn_board = get_field(pawn_board, NUM_FILES * 4, NUM_FILES * 2);
-	pawn_board = pawn_board << NUM_FILES * 2;
+	const Bitboard STANDARD_PAWN_MOVE_MASK = (Bitboard)0xffffffff << 16;
+	Bitboard pawn_board = position->piece_boards[pt] & STANDARD_PAWN_MOVE_MASK;
 
 	if (!pawn_board) return;
 
@@ -1652,7 +1612,7 @@ static void gen_pawn_standard_moves(
 	Bitboard opp_color_pieces = position->color_boards[side_to_move ^ 1u];
 	int need_safety_check = king_in_check || king_xrayed;
 
-	// get an en passant bit board
+	// get en passant bit board
 	Bitboard ep_board = (Bitboard)1u * get_ep_active(position);
 	ep_board = ep_board << get_ep_square(position);
 
@@ -1664,7 +1624,7 @@ static void gen_pawn_standard_moves(
 	for (int i = 0; i < piece_count; i++) {
 		int src = piece_squares[i];
 
-		// get capture_targets
+		// capture_targets
 		Bitboard capture_targets = 
 			get_pawn_capture_targets(side_to_move, src);
 		Bitboard ep_capture_target = capture_targets & ep_board;
@@ -1688,7 +1648,7 @@ static void gen_pawn_standard_moves(
 				need_safety_check);
 
 		if (!king_in_check) {
-			// get quiet_targets
+			// quiet_targets
 			Bitboard quiet_targets = 
 				get_pawn_quiet_targets(side_to_move, src);
 			quiet_targets &= ~occupied;
@@ -1755,7 +1715,7 @@ static void gen_pawn_start_moves(
 	for (int i = 0; i < piece_count; i++) {
 		int src = piece_squares[i];
 
-		// get capture_targets
+		// capture_targets
 		Bitboard capture_targets = 
 			get_pawn_capture_targets(side_to_move, src);
 		capture_targets &= opp_color_pieces;
@@ -1835,6 +1795,11 @@ static void union_targets_from_ray(
 		Bitboard* capture_targets,
 		Bitboard* quiet_targets) {
 
+	ASSERT(position);
+	ASSERT(ray_targets);
+	ASSERT(capture_targets);
+	ASSERT(quiet_targets);
+
 	Bitboard opp_color_pieces = 
 		position->color_boards[position->side_to_move ^ 1u];
 	Bitboard occupied = position->occupied_board;
@@ -1852,15 +1817,15 @@ static void union_targets_from_ray(
 		else
 			blocker_index = get_ms1b(ray_squares);
 
-		// get possible capture target and 
+		// potential capture target 
 		// interesect with opposite colored pieces
 		*capture_targets |= ray_targets->capture_target[blocker_index] & 
 			opp_color_pieces;
 
-		// get precomputed quiet targets
+		// quiet targets
 		*quiet_targets |= ray_targets->quiet_targets[blocker_index];
-
 	} else {
+		// if no blocker, quiet targets are full ray
 		*quiet_targets |= ray_mask;
 	}
 }
@@ -1887,14 +1852,13 @@ static void gen_sliding_moves(
 	int side_to_move = (int)position->side_to_move;
 	int need_safety_check = king_in_check || king_xrayed;
 
-	Piece_Type sliders[NUM_SLIDING_TYPES_PER_SIDE] = {WB, WR, WQ};
 	// iterate through sliding piece types
+	Piece_Type sliders[NUM_SLIDING_TYPES_PER_SIDE] = {WB, WR, WQ};
 	for (
 			int sliders_i = 0; 
 			sliders_i < NUM_SLIDING_TYPES_PER_SIDE; 
 			sliders_i++) {
 
-		// select correct color based on side to move
 		Piece_Type pt = sliders[sliders_i] + side_to_move * COLOR_OFFSET;
 		Bitboard piece_board = position->piece_boards[pt];
 
@@ -2001,13 +1965,14 @@ static Bitboard get_disjoint_targets(const Position* position, int side) {
 	return disjoint_targets;
 }
 
+// return a bitboard of all sliding piece moves as if the board is empty
 static Bitboard get_xray_targets(const Position* position, int side) {
 	Piece_Type pt0, pt1;
 	const Bitboard* piece_boards = position->piece_boards;
-	unsigned int target_squares[NUM_SQUARES];
-	int target_count;
 	Bitboard combined_pieces;
 	Bitboard xrays = 0u;
+	unsigned int target_squares[NUM_SQUARES];
+	int target_count;
 
 	// straight-line pieces
 	pt0 = WR + COLOR_OFFSET * side;
@@ -2069,8 +2034,8 @@ int gen_pseudo_moves(Move* move_list, const Position* position) {
 		get_disjoint_targets(position, opp_side);
 	int king_in_check = !!(king_square & opp_disjoint_targets);
 
-	// get opposite color sliding targets as if the board was empty
-	// this is used to check if king could be x-rayed
+	// find out if king is x-rayed, if king is x-rayed or in check
+	// a king safety check will need to be run on make move
 	Bitboard opp_xrays = get_xray_targets(position, opp_side);
 	int king_xrayed = !!(opp_xrays & king_square);
 
@@ -2123,7 +2088,7 @@ int gen_pseudo_moves(Move* move_list, const Position* position) {
 }
 
 // swap source piece from src to dest, handle castling as well
-// can be used to make or unmake move
+// could be used to make or unmake move
 static void make_move_update_bitboards(Position* position, Move move) {
 	const int side_to_move = (int)position->side_to_move;
 	const int src = (int)get_move_src(move);
@@ -2132,6 +2097,7 @@ static void make_move_update_bitboards(Position* position, Move move) {
 	const unsigned int castle_type = (unsigned int)get_move_castle_type(move);
 	Bitboard* const piece_boards = position->piece_boards;
 
+	// dest piece is the same as source piece unless move is a promo
 	Piece_Type dest_pt = src_pt; 
 	if (get_move_is_promo(move)) {
 		dest_pt = get_move_promo_pt(move);
@@ -2149,17 +2115,18 @@ static void make_move_update_bitboards(Position* position, Move move) {
 	ASSERT(is_valid_pt(dest_pt));
 	ASSERT(is_valid_castle_type(castle_type));
 
-	// remove source piece
+	// flip source piece
 	Bitboard src_swapper = (Bitboard)1u << src;
 	piece_boards[src_pt] ^= src_swapper;
 	position->color_boards[side_to_move] ^= src_swapper;
 
-	// add dest piece which equals source piece unless it is a promo move
+	// flip dest piece 
 	Bitboard dest_swapper = (Bitboard)1u << dest;
 	piece_boards[dest_pt] ^= dest_swapper;
 	position->color_boards[side_to_move] ^= dest_swapper;
 
 	// update rook bitboards for a castle move
+	// king is handled through src and dest fields
 	const Bitboard krook_swap = (Bitboard)0b10100000u;
 	const Bitboard qrook_swap = (Bitboard)0b1001;
 	const int black_castle_shift = NUM_FILES * (NUM_RANKS - 1);
@@ -2190,18 +2157,17 @@ static void make_move_update_bitboards(Position* position, Move move) {
 			default:
 				ASSERT(0);
 		}
-
+		// flip rooks
 		Piece_Type rook_pt = WR + COLOR_OFFSET * side_to_move;
 		piece_boards[rook_pt] ^= rook_swapper;
 		position->color_boards[side_to_move] ^= rook_swapper;
 
 	} else if (get_move_is_capture(move)) {
-		// handle captures
 		int cap_square = dest;
 		Piece_Type cap_pt = get_move_cap_pt(move);
 		ASSERT(is_valid_pt(cap_pt));
 
-		// handle en passant
+		// update capture piece if move is an ep capture
 		if (get_ep_active(position)) {
 			int ep_square = (int)get_ep_square(position);
 			if (dest == ep_square) {
@@ -2214,6 +2180,7 @@ static void make_move_update_bitboards(Position* position, Move move) {
 					(2 * NUM_FILES * side_to_move);
 			}
 		}
+		// flip capture piece
 		Bitboard cap_swapper = (Bitboard)1u << cap_square;
 		piece_boards[cap_pt] ^= cap_swapper;
 		position->color_boards[side_to_move ^ 1u] ^= cap_swapper;
@@ -2222,6 +2189,7 @@ static void make_move_update_bitboards(Position* position, Move move) {
 		position->color_boards[BLACK];
 }
 
+// return 1 if square is attacked by side, 0 if not
 static int is_square_attacked(const Position* position, int square, int side) {
 	ASSERT(position);
 	ASSERT(is_valid_square(square));
@@ -2229,9 +2197,13 @@ static int is_square_attacked(const Position* position, int square, int side) {
 
 	Bitboard occupied = position->occupied_board;
 	const Bitboard* piece_boards = position->piece_boards;
-	const Ray_Targets* ray;
 	Bitboard targets;
 	Piece_Type pt0, pt1;
+
+	// Pretend each piece type is at the square to test.
+	// If the fake piece could capture a piece of the
+	// same type, then the square is attacked because that
+	// piece could attack the square to test as well.
 
 	// disjoint
 	// knights
@@ -2247,14 +2219,23 @@ static int is_square_attacked(const Position* position, int square, int side) {
 	targets = get_pawn_capture_targets(side ^ 1u, square);
 	if (piece_boards[pt0] & targets) return 1;
 
-	// straight line sliders, only check if rooks or queens are on the board
+	// straight line sliders
+	// only check if rooks or queens are on the board
 	pt0 = WR + COLOR_OFFSET * side;
 	pt1 = WQ + COLOR_OFFSET * side;
 	Bitboard straight_line_board = piece_boards[pt0] | piece_boards[pt1];
 
-	if (straight_line_board) {
-		ray = get_ray_up(square);
-		targets = ray->ray_mask & occupied;
+	const Ray_Targets* ray_up = get_ray_up(square);
+	const Ray_Targets* ray_down = get_ray_down(square);
+	const Ray_Targets* ray_left = get_ray_left(square);
+	const Ray_Targets* ray_right = get_ray_right(square);
+	Bitboard straight_rays = 
+		ray_up->ray_mask | ray_down->ray_mask | 
+		ray_left->ray_mask | ray_right->ray_mask;
+
+	// continue test if straight rays intersect with a rook or queen
+	if (straight_rays & straight_line_board) {
+		targets = ray_up->ray_mask & occupied;
 		if (targets) {
 			int blocker = get_ls1b(targets);
 			if (get_bit(straight_line_board, blocker)){
@@ -2262,8 +2243,7 @@ static int is_square_attacked(const Position* position, int square, int side) {
 			}
 		}
 
-		ray = get_ray_right(square);
-		targets = ray->ray_mask & occupied;
+		targets = ray_right->ray_mask & occupied;
 		if (targets) {
 			int blocker = get_ls1b(targets);
 			if (get_bit(straight_line_board, blocker)) {
@@ -2271,8 +2251,7 @@ static int is_square_attacked(const Position* position, int square, int side) {
 			}
 		}
 
-		ray = get_ray_left(square);
-		targets = ray->ray_mask & occupied;
+		targets = ray_left->ray_mask & occupied;
 		if (targets) {
 			int blocker = get_ms1b(targets);
 			if (get_bit(straight_line_board, blocker)) {
@@ -2280,8 +2259,7 @@ static int is_square_attacked(const Position* position, int square, int side) {
 			}
 		}
 
-		ray = get_ray_down(square);
-		targets = ray->ray_mask & occupied;
+		targets = ray_down->ray_mask & occupied;
 		if (targets) {
 			int blocker = get_ms1b(targets);
 			if (get_bit(straight_line_board, blocker)) {
@@ -2291,13 +2269,22 @@ static int is_square_attacked(const Position* position, int square, int side) {
 	}
 
 	// diagonal sliders
+	// only check if bishops or queens are on the board
 	pt0 = WB + COLOR_OFFSET * side;
 	pt1 = WQ + COLOR_OFFSET * side;
 	Bitboard diagonal_board = piece_boards[pt0] | piece_boards[pt1];
 
-	if (diagonal_board) {
-		ray = get_ray_up_right(square);
-		targets = ray->ray_mask & occupied;
+	const Ray_Targets* ray_up_right = get_ray_up_right(square);
+	const Ray_Targets* ray_up_left = get_ray_up_left(square);
+	const Ray_Targets* ray_down_right = get_ray_down_right(square);
+	const Ray_Targets* ray_down_left = get_ray_down_left(square);
+	Bitboard diag_rays = 
+		ray_up_right->ray_mask | ray_up_left->ray_mask | 
+		ray_down_right->ray_mask | ray_down_left->ray_mask;
+
+	// continue test if diagonal rays intersect with a bishop or queen
+	if (diag_rays & diagonal_board) {
+		targets = ray_up_right->ray_mask & occupied;
 		if (targets) {
 			int blocker = get_ls1b(targets);
 			if (get_bit(diagonal_board, blocker)) {
@@ -2305,8 +2292,7 @@ static int is_square_attacked(const Position* position, int square, int side) {
 			}
 		}
 
-		ray = get_ray_up_left(square);
-		targets = ray->ray_mask & occupied;
+		targets = ray_up_left->ray_mask & occupied;
 		if (targets) {
 			int blocker = get_ls1b(targets);
 			if (get_bit(diagonal_board, blocker)) {
@@ -2314,8 +2300,7 @@ static int is_square_attacked(const Position* position, int square, int side) {
 			}
 		}
 
-		ray = get_ray_down_right(square);
-		targets = ray->ray_mask & occupied;
+		targets = ray_down_right->ray_mask & occupied;
 		if (targets) {
 			int blocker = get_ms1b(targets);
 			if (get_bit(diagonal_board, blocker)) {
@@ -2323,8 +2308,7 @@ static int is_square_attacked(const Position* position, int square, int side) {
 			}
 		}
 
-		ray = get_ray_down_left(square);
-		targets = ray->ray_mask & occupied;
+		targets = ray_down_left->ray_mask & occupied;
 		if (targets) {
 			int blocker = get_ms1b(targets);
 			if (get_bit(diagonal_board, blocker)) {
@@ -2332,24 +2316,16 @@ static int is_square_attacked(const Position* position, int square, int side) {
 			}
 		}
 	}
-
 	return 0;
 }
 
 int make_move(Position* position, Move move) {
 	ASSERT(position);
 
-	int side_to_move = position->side_to_move;
 	Piece_Type src_pt = get_move_src_pt(move);
+	int side_to_move = position->side_to_move;
 	int src = (int)get_move_src(move);
 	int dest = (int)get_move_dest(move);
-
-	const int WK_SQUARE = 4;
-	const int WRK_SQUARE = 7;
-	const int WRQ_SQUARE = 0;
-	const int BK_SQUARE = 60;
-	const int BRK_SQUARE = 63;
-	const int BRQ_SQUARE = 56;
 
 	// swap src and dest on bitboards
 	make_move_update_bitboards(position, move);
@@ -2364,6 +2340,9 @@ int make_move(Position* position, Move move) {
 		}
 	}
 
+	// test castle move is fully legal
+	const int WK_SQUARE = 4;
+	const int BK_SQUARE = 60;
 	U64 castle_type = get_move_castle_type(move);
 	if (castle_type) {
 		// can't castle out of check
@@ -2416,10 +2395,9 @@ int make_move(Position* position, Move move) {
 	// incremental updates
 	ASSERT(side_to_move == 1 || side_to_move == 0);
 	position->fullmoves += side_to_move;
-	position->side_to_move = side_to_move ^ 1u;
+	position->side_to_move ^= 1u;
 
-	// direct updates
-	// set ep square
+	// update ep square
 	if (src_pt == WP + COLOR_OFFSET * side_to_move &&
 			dest - (src - 4 * NUM_FILES * side_to_move) == 2 * NUM_FILES) {
 		set_ep_active(position);
@@ -2429,15 +2407,7 @@ int make_move(Position* position, Move move) {
 	}
 
 	// update castle rights
-
-	if (src == WK_SQUARE || src == WRK_SQUARE || dest == WRK_SQUARE)
-		clear_wk_castle(position);
-	if (src == WK_SQUARE || src == WRQ_SQUARE || dest == WRQ_SQUARE)
-		clear_wq_castle(position);
-	if (src == BK_SQUARE || src == BRK_SQUARE || dest == BRK_SQUARE)
-		clear_bk_castle(position);
-	if (src == BK_SQUARE || src == BRQ_SQUARE || dest == BRQ_SQUARE)
-		clear_bq_castle(position);
+	position->state_field &= castle_rights_updater[src] & castle_rights_updater[dest];
 
 	// update halfmoves
 	if (get_move_is_capture(move) || src_pt == WP + COLOR_OFFSET * side_to_move)
@@ -2449,15 +2419,15 @@ int make_move(Position* position, Move move) {
 }
 
 /*
-void unmake_move(Position* position, Move move) {
-	// copy state
-	position->state_field = move >> MOVE_STATE_COPY_SHIFT;
-	// undo incremental update
-	position->side_to_move ^= 1u;
-	ASSERT(position->side_to_move == 0 || position->side_to_move == 1);
-	position->fullmoves -= position->side_to_move;
-	// undo bitboard
-	make_move_update_bitboards(position, move);
+   void unmake_move(Position* position, Move move) {
+// copy state
+position->state_field = move >> MOVE_STATE_COPY_SHIFT;
+// undo incremental update
+position->side_to_move ^= 1u;
+ASSERT(position->side_to_move == 0 || position->side_to_move == 1);
+position->fullmoves -= position->side_to_move;
+// undo bitboard
+make_move_update_bitboards(position, move);
 }
 */
 
@@ -2484,45 +2454,19 @@ void print_position(const Position* position) {
 
 			char c;
 			switch (pt) {
-				case WP:
-					c = 'P';
-					break;
-				case WN:
-					c = 'N';
-					break;
-				case WB:
-					c = 'B';
-					break;
-				case WR:
-					c = 'R';
-					break;
-				case WQ:
-					c = 'Q';
-					break;
-				case WK:
-					c = 'K';
-					break;
-				case BP:
-					c = 'p';
-					break;
-				case BN:
-					c = 'n';
-					break;
-				case BB:
-					c = 'b';
-					break;
-				case BR:
-					c = 'r';
-					break;
-				case BQ:
-					c = 'q';
-					break;
-				case BK:
-					c = 'k';
-					break;
-				default:
-					c = ' ';
-					break;
+				case WP: c = 'P'; break;
+				case WN: c = 'N'; break;
+				case WB: c = 'B'; break;
+				case WR: c = 'R'; break;
+				case WQ: c = 'Q'; break;
+				case WK: c = 'K'; break;
+				case BP: c = 'p'; break;
+				case BN: c = 'n'; break;
+				case BB: c = 'b'; break;
+				case BR: c = 'r'; break;
+				case BQ: c = 'q'; break;
+				case BK: c = 'k'; break;
+				default: c = ' '; break;
 			}
 
 			printf(" %c |", c);
@@ -2641,12 +2585,12 @@ void run_perft_validation(void) {
 		"r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1",
 		"rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8  ",
 		"r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10 "};
-	int depths[NUM_TEST_POSITIONS] = {6, 5, 6, 5, 5, 5};
+	int depths[NUM_TEST_POSITIONS] = {6, 5, 6, 6, 5, 5};
 	long long int results[NUM_TEST_POSITIONS] = {
 		119060324,
 		193690690,
 		11030083,
-		15833292,
+		706045033,
 		89941194,
 		164075551
 	};
