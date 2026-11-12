@@ -2233,6 +2233,7 @@ static int is_square_attacked(const Position* position, int square, int side) {
 		ray_up->ray_mask | ray_down->ray_mask | 
 		ray_left->ray_mask | ray_right->ray_mask;
 
+	// continue test if straight rays intersect with a rook or queen
 	if (straight_rays & straight_line_board) {
 		targets = ray_up->ray_mask & occupied;
 		if (targets) {
@@ -2281,6 +2282,7 @@ static int is_square_attacked(const Position* position, int square, int side) {
 		ray_up_right->ray_mask | ray_up_left->ray_mask | 
 		ray_down_right->ray_mask | ray_down_left->ray_mask;
 
+	// continue test if diagonal rays intersect with a bishop or queen
 	if (diag_rays & diagonal_board) {
 		targets = ray_up_right->ray_mask & occupied;
 		if (targets) {
@@ -2314,7 +2316,6 @@ static int is_square_attacked(const Position* position, int square, int side) {
 			}
 		}
 	}
-
 	return 0;
 }
 
@@ -2584,12 +2585,12 @@ void run_perft_validation(void) {
 		"r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1",
 		"rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8  ",
 		"r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10 "};
-	int depths[NUM_TEST_POSITIONS] = {6, 5, 6, 5, 5, 5};
+	int depths[NUM_TEST_POSITIONS] = {6, 5, 6, 6, 5, 5};
 	long long int results[NUM_TEST_POSITIONS] = {
 		119060324,
 		193690690,
 		11030083,
-		15833292,
+		706045033,
 		89941194,
 		164075551
 	};

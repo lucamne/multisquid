@@ -8,7 +8,6 @@ Design
 
 TODO
 - move
-	- seperate king moves into those that do or dont need safety check
 	- decide what to do with move unmaking
 		- decide what to do with move->state_field stuff
 		- if not unmaking, pack side to move and full move
