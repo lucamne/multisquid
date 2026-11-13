@@ -101,6 +101,211 @@ static void set_field(U64* u, U64 value, int w, int b) {
 	*u |= value << b;
 }
 
+/*======================================================================
+ * Evaluation
+ *
+ * piece square table constants, intialization, and helpers
+ *======================================================================*/
+static const int MG_PIECE_VALUES[NUM_PIECE_TYPES_PER_SIDE] = { 
+	82, 337, 365, 477, 1025,  0
+};
+static const int EG_PIECE_VALUES[NUM_PIECE_TYPES_PER_SIDE] = { 
+	94, 281, 297, 512,  936,  0
+};
+static const int MAX_PHASE = 24;
+static const int PSQ_PHASE[NUM_PIECE_TYPES] = {
+	0, 1, 1, 2, 4, 0, 0, 1, 1, 2, 4, 0
+};
+static const int MG_PAWN_TABLE[NUM_SQUARES] = {
+      0,   0,   0,   0,   0,   0,  0,   0,
+     98, 134,  61,  95,  68, 126, 34, -11,
+     -6,   7,  26,  31,  65,  56, 25, -20,
+    -14,  13,   6,  21,  23,  12, 17, -23,
+    -27,  -2,  -5,  12,  17,   6, 10, -25,
+    -26,  -4,  -4, -10,   3,   3, 33, -12,
+    -35,  -1, -20, -23, -15,  24, 38, -22,
+      0,   0,   0,   0,   0,   0,  0,   0,
+};
+static const int EG_PAWN_TABLE[NUM_SQUARES] = {
+      0,   0,   0,   0,   0,   0,   0,   0,
+    178, 173, 158, 134, 147, 132, 165, 187,
+     94, 100,  85,  67,  56,  53,  82,  84,
+     32,  24,  13,   5,  -2,   4,  17,  17,
+     13,   9,  -3,  -7,  -7,  -8,   3,  -1,
+      4,   7,  -6,   1,   0,  -5,  -1,  -8,
+     13,   8,   8,  10,  13,   0,   2,  -7,
+      0,   0,   0,   0,   0,   0,   0,   0,
+};
+static const int MG_KNIGHT_TABLE[NUM_SQUARES] = {
+    -167, -89, -34, -49,  61, -97, -15, -107,
+     -73, -41,  72,  36,  23,  62,   7,  -17,
+     -47,  60,  37,  65,  84, 129,  73,   44,
+      -9,  17,  19,  53,  37,  69,  18,   22,
+     -13,   4,  16,  13,  28,  19,  21,   -8,
+     -23,  -9,  12,  10,  19,  17,  25,  -16,
+     -29, -53, -12,  -3,  -1,  18, -14,  -19,
+    -105, -21, -58, -33, -17, -28, -19,  -23,
+};
+static const int EG_KNIGHT_TABLE[NUM_SQUARES] = {
+    -58, -38, -13, -28, -31, -27, -63, -99,
+    -25,  -8, -25,  -2,  -9, -25, -24, -52,
+    -24, -20,  10,   9,  -1,  -9, -19, -41,
+    -17,   3,  22,  22,  22,  11,   8, -18,
+    -18,  -6,  16,  25,  16,  17,   4, -18,
+    -23,  -3,  -1,  15,  10,  -3, -20, -22,
+    -42, -20, -10,  -5,  -2, -20, -23, -44,
+    -29, -51, -23, -15, -22, -18, -50, -64,
+};
+static const int MG_BISHOP_TABLE[NUM_SQUARES] = {
+    -29,   4, -82, -37, -25, -42,   7,  -8,
+    -26,  16, -18, -13,  30,  59,  18, -47,
+    -16,  37,  43,  40,  35,  50,  37,  -2,
+     -4,   5,  19,  50,  37,  37,   7,  -2,
+     -6,  13,  13,  26,  34,  12,  10,   4,
+      0,  15,  15,  15,  14,  27,  18,  10,
+      4,  15,  16,   0,   7,  21,  33,   1,
+    -33,  -3, -14, -21, -13, -12, -39, -21,
+};
+static const int EG_BISHOP_TABLE[NUM_SQUARES] = {
+    -14, -21, -11,  -8, -7,  -9, -17, -24,
+     -8,  -4,   7, -12, -3, -13,  -4, -14,
+      2,  -8,   0,  -1, -2,   6,   0,   4,
+     -3,   9,  12,   9, 14,  10,   3,   2,
+     -6,   3,  13,  19,  7,  10,  -3,  -9,
+    -12,  -3,   8,  10, 13,   3,  -7, -15,
+    -14, -18,  -7,  -1,  4,  -9, -15, -27,
+    -23,  -9, -23,  -5, -9, -16,  -5, -17,
+};
+static const int MG_ROOK_TABLE[NUM_SQUARES] = {
+     32,  42,  32,  51, 63,  9,  31,  43,
+     27,  32,  58,  62, 80, 67,  26,  44,
+     -5,  19,  26,  36, 17, 45,  61,  16,
+    -24, -11,   7,  26, 24, 35,  -8, -20,
+    -36, -26, -12,  -1,  9, -7,   6, -23,
+    -45, -25, -16, -17,  3,  0,  -5, -33,
+    -44, -16, -20,  -9, -1, 11,  -6, -71,
+    -19, -13,   1,  17, 16,  7, -37, -26,
+};
+static const int EG_ROOK_TABLE[NUM_SQUARES] = {
+    13, 10, 18, 15, 12,  12,   8,   5,
+    11, 13, 13, 11, -3,   3,   8,   3,
+     7,  7,  7,  5,  4,  -3,  -5,  -3,
+     4,  3, 13,  1,  2,   1,  -1,   2,
+     3,  5,  8,  4, -5,  -6,  -8, -11,
+    -4,  0, -5, -1, -7, -12,  -8, -16,
+    -6, -6,  0,  2, -9,  -9, -11,  -3,
+    -9,  2,  3, -1, -5, -13,   4, -20,
+};
+static const int MG_QUEEN_TABLE[NUM_SQUARES] = {
+    -28,   0,  29,  12,  59,  44,  43,  45,
+    -24, -39,  -5,   1, -16,  57,  28,  54,
+    -13, -17,   7,   8,  29,  56,  47,  57,
+    -27, -27, -16, -16,  -1,  17,  -2,   1,
+     -9, -26,  -9, -10,  -2,  -4,   3,  -3,
+    -14,   2, -11,  -2,  -5,   2,  14,   5,
+    -35,  -8,  11,   2,   8,  15,  -3,   1,
+     -1, -18,  -9,  10, -15, -25, -31, -50,
+};
+static const int EG_QUEEN_TABLE[NUM_SQUARES] = {
+     -9,  22,  22,  27,  27,  19,  10,  20,
+    -17,  20,  32,  41,  58,  25,  30,   0,
+    -20,   6,   9,  49,  47,  35,  19,   9,
+      3,  22,  24,  45,  57,  40,  57,  36,
+    -18,  28,  19,  47,  31,  34,  39,  23,
+    -16, -27,  15,   6,   9,  17,  10,   5,
+    -22, -23, -30, -16, -16, -23, -36, -32,
+    -33, -28, -22, -43,  -5, -32, -20, -41,
+};
+static const int MG_KING_TABLE[NUM_SQUARES] = {
+    -65,  23,  16, -15, -56, -34,   2,  13,
+     29,  -1, -20,  -7,  -8,  -4, -38, -29,
+     -9,  24,   2, -16, -20,   6,  22, -22,
+    -17, -20, -12, -27, -30, -25, -14, -36,
+    -49,  -1, -27, -39, -46, -44, -33, -51,
+    -14, -14, -22, -46, -44, -30, -15, -27,
+      1,   7,  -8, -64, -43, -16,   9,   8,
+    -15,  36,  12, -54,   8, -28,  24,  14,
+};
+static const int EG_KING_TABLE[NUM_SQUARES] = {
+    -74, -35, -18, -18, -11,  15,   4, -17,
+    -12,  17,  14,  17,  17,  38,  23,  11,
+     10,  17,  23,  15,  20,  45,  44,  13,
+     -8,  22,  24,  27,  26,  33,  26,   3,
+    -18,  -4,  21,  24,  27,  23,   9, -11,
+    -19,  -3,  11,  21,  23,  16,   7,  -9,
+    -27, -11,   4,  13,  14,   4,  -5, -17,
+    -53, -34, -21, -11, -28, -14, -24, -43
+};
+
+static const int* ALL_MG_TABLES[NUM_SQUARES] = {
+	MG_PAWN_TABLE,
+	MG_KING_TABLE,
+	MG_BISHOP_TABLE,
+	MG_ROOK_TABLE,
+	MG_QUEEN_TABLE,
+	MG_KING_TABLE};
+
+static const int* ALL_EG_TABLES[NUM_SQUARES] = {
+	EG_PAWN_TABLE,
+	EG_KING_TABLE,
+	EG_BISHOP_TABLE,
+	EG_ROOK_TABLE,
+	EG_QUEEN_TABLE,
+	EG_KING_TABLE};
+
+// piece square tables to be used by evaluation
+// all values are in centipawns from white POV
+static int PSQ_MG[NUM_PIECE_TYPES][NUM_SQUARES];
+static int PSQ_EG[NUM_PIECE_TYPES][NUM_SQUARES];
+
+// init piece square table, call during engine init
+static void init_psq(void) {
+	for (Piece_Type pt = WP; pt < BP; pt++) {
+		for (int s = 0; s < NUM_SQUARES; s++) {
+			// my constant psq ranks are flipped TODO fix this
+			int ts = s ^ 56;
+			// white pieces
+			PSQ_MG[pt][s] = 
+				ALL_MG_TABLES[pt][ts] + MG_PIECE_VALUES[pt]; 
+			PSQ_EG[pt][s] = 
+				ALL_EG_TABLES[pt][ts] + EG_PIECE_VALUES[pt]; 
+			// black pieces
+			// ^56 inverts ranks
+			// values are negated for black
+			PSQ_MG[pt + COLOR_OFFSET][s] = 
+				-(ALL_MG_TABLES[pt][ts ^ 56] + 
+				MG_PIECE_VALUES[pt]);
+			PSQ_EG[pt + COLOR_OFFSET][s] = 
+				-(ALL_EG_TABLES[pt][ts ^ 56] + 
+				EG_PIECE_VALUES[pt]); 
+		}
+	}
+}
+
+static void update_psq_add(Position* pos, Piece_Type pt, int sq) {
+	pos->psq_mg += PSQ_MG[pt][sq];
+	pos->psq_eg += PSQ_EG[pt][sq];
+	pos->gamephase += PSQ_PHASE[pt];
+}
+
+static void update_psq_remove(Position* pos, Piece_Type pt, int sq) {
+	pos->psq_mg -= PSQ_MG[pt][sq];
+	pos->psq_eg -= PSQ_EG[pt][sq];
+	pos->gamephase -= PSQ_PHASE[pt];
+}
+
+// return eval of position in centipawns from side to move POV
+static int eval(const Position* pos) {
+	ASSERT(pos);
+	int phase = pos->gamephase;
+	// in case of early promotions
+	if (phase > MAX_PHASE) phase = MAX_PHASE;
+
+	int interp = (pos->psq_mg * phase + pos->psq_eg * (MAX_PHASE - phase)) 
+		/ MAX_PHASE;
+
+	return interp - (2 * interp * pos->side_to_move);
+}
 
 /*======================================================================
  * Position
@@ -143,12 +348,6 @@ static const int SQUARE_TO_FILE[NUM_SQUARES] = {
 	0, 1, 2, 3, 4, 5, 6, 7,
 	0, 1, 2, 3, 4, 5, 6, 7,
 	0, 1, 2, 3, 4, 5, 6, 7};
-
-/* incremental eval constants */
-// all values in centipawns from white's pov
-static const int PIECE_VALUES[NUM_PIECE_TYPES] = {
-	 100,	 350, 	350, 	525, 	1000, 	10000,
-	-100, 	-350,  -350,   -525,   -1000,  -10000};
 
 // used in ASSERT checks
 static int is_valid_square(int square) { return square >= 0 && square <= 63; }
@@ -356,11 +555,11 @@ int load_position_from_fen(const char* fen, Position* position) {
 				file += c - '0';
 				continue;
 		}
+		int sq = rf_to_sq(rank, file);
 		// update eval
-		position->lazy_eval += PIECE_VALUES[pt];
-
+		update_psq_add(position, pt, sq);
 		// add piece to bitboard
-		set_piece(position, pt, rf_to_sq(rank, file));
+		set_piece(position, pt, sq);
 		file++;
 	}
 
@@ -2137,41 +2336,52 @@ static void make_move_update_bitboards(Position* position, Move move) {
 	position->color_boards[side_to_move] ^= dest_swapper;
 
 	// eval updates
-	position->mat_balance -= PIECE_VALUES[src_pt];
-	position->mat_balance += PIECE_VALUES[dest_pt];
-	position->psq_mg -= PSQ_MG[src_pt][src];
-	position->psq_mg += PSQ_MG[dest_pt][dest];
-	position->psq_eg -= PSQ_EG[src_pt][src];
-	position->psq_eg += PSQ_EG[dest_pt][dest];
+	update_psq_remove(position, src_pt, src);
+	update_psq_add(position, dest_pt, dest);
 
 	// update rook bitboards for a castle move
 	// king is handled through src and dest fields
 	const Bitboard krook_swap = (Bitboard)0b10100000u;
 	const Bitboard qrook_swap = (Bitboard)0b1001;
 	const int black_castle_shift = NUM_FILES * (NUM_RANKS - 1);
+	const int WKR = 7;
+	const int WQR = 0;
+	const int BKR = 63;
+	const int BQR = 56;
+
 	if (castle_type) {
 		ASSERT(src_pt == WK + COLOR_OFFSET * side_to_move);
 
+		int rook_src = 0;
+		int rook_dest = 0;
 		Bitboard rook_swapper = 0u;
 		switch (castle_type) {
 			case WK_CASTLE_TYPE:
 				ASSERT(!side_to_move);
 				rook_swapper = krook_swap;
+				rook_src = WKR;
+				rook_dest = WKR - 2;
 				break;
 
 			case WQ_CASTLE_TYPE:
 				ASSERT(!side_to_move);
 				rook_swapper = qrook_swap;
+				rook_src = WQR;
+				rook_dest = WQR + 3;
 				break;
 
 			case BK_CASTLE_TYPE:
 				ASSERT(side_to_move);
 				rook_swapper = krook_swap << black_castle_shift;
+				rook_src = BKR;
+				rook_dest = BKR - 2;
 				break;
 
 			case BQ_CASTLE_TYPE:
 				ASSERT(side_to_move);
 				rook_swapper = qrook_swap << black_castle_shift;
+				rook_src = BQR;
+				rook_dest = BQR + 3;
 				break;
 			default:
 				ASSERT(0);
@@ -2180,6 +2390,10 @@ static void make_move_update_bitboards(Position* position, Move move) {
 		Piece_Type rook_pt = WR + COLOR_OFFSET * side_to_move;
 		piece_boards[rook_pt] ^= rook_swapper;
 		position->color_boards[side_to_move] ^= rook_swapper;
+
+		// update eval
+		update_psq_add(position, rook_pt, rook_dest);
+		update_psq_remove(position, rook_pt, rook_src);
 
 	} else if (get_move_is_capture(move)) {
 		int cap_square = dest;
@@ -2205,7 +2419,7 @@ static void make_move_update_bitboards(Position* position, Move move) {
 		position->color_boards[side_to_move ^ 1u] ^= cap_swapper;
 
 		// eval update
-		position->lazy_eval -= PIECE_VALUES[cap_pt];
+		update_psq_remove(position, cap_pt, cap_square);
 	}
 	position->occupied_board = position->color_boards[WHITE] | 
 		position->color_boards[BLACK];
@@ -2458,15 +2672,34 @@ make_move_update_bitboards(position, move);
  *======================================================================*/
 static const int INF = 999999;
 
-static int ab_min(
+static int quiesce(
 		const Position* pos, 
-		int depth, 
 		int alpha, 
-		int beta, 
-		PV_Line* pv,
-		const PV_Line* prev_pv);
+		int beta) {
 
-static int ab_max(
+	ASSERT(pos);
+
+	int stand_pat = eval(pos);
+	if (stand_pat >= beta) return stand_pat;
+	if (stand_pat > alpha) alpha = stand_pat;
+
+	Move move_list[MOVE_LIST_SIZE];
+	int move_count = gen_pseudo_tactical_moves(move_list, pos);
+
+	for (int i = 0; i < move_count; i++) {
+		Position copy_pos = *pos;
+		if (make_move(&copy_pos, move_list[i])) continue;
+
+		int score = -quiesce(&copy_pos, -beta, -alpha);
+
+		if (score >= beta) return score;
+		if (score > alpha) alpha = score;
+		if (score > stand_pat) stand_pat = score;
+	}
+	return stand_pat;
+}
+
+static int ab_nega(
 		const Position* pos, 
 		int depth, 
 		int alpha, 
@@ -2475,12 +2708,10 @@ static int ab_max(
 		const PV_Line* prev_pv) {
 
 	ASSERT(pos);
-	ASSERT(depth);
 	ASSERT(pv);
 
-	// no depth==0 needed right now because no eval function
-	PV_Line line = {0};
-	int best_val = -INF;
+	if (!depth)
+		return quiesce(pos, alpha, beta);
 
 	// gen moves, insert previous pv move if available
 	// there will be a duplicate move in the list
@@ -2495,93 +2726,30 @@ static int ab_max(
 		move_list[0] = prev_pv->moves[pv_index];
 		move_count++;
 	}
+
 	move_count += gen_pseudo_moves(move_list + move_count, pos);
+	PV_Line line = {0};
 
 	for (int i = 0; i < move_count; i++) {
 		Position copy_pos = *pos;
 		if (make_move(&copy_pos, move_list[i])) continue;
 
-		// lazy eval calculated during make move (no eval() needed)
-		int score;
-		if (depth == 1) score = copy_pos.lazy_eval;
-		else 		score = ab_min(&copy_pos, depth - 1, alpha, beta, &line, prev_pv);
+		int score = -ab_nega(&copy_pos, depth - 1, -beta, -alpha, &line, prev_pv);
 
 		// discard pv after first move so future branches don't have illegal moves
 		prev_pv = NULL;
 
 		// raise alpha and update pvline
-		if (score > best_val) {
-			best_val = score;
-			if (score > alpha) {
-				alpha = score;
-				pv->moves[0] = move_list[i];
-				memcpy(pv->moves + 1, line.moves, line.num_moves * sizeof(Move));
-				pv->num_moves = line.num_moves + 1;
-			}
+		if (score > alpha) {
+			alpha = score;
+			pv->moves[0] = move_list[i];
+			memcpy(pv->moves + 1, line.moves, line.num_moves * sizeof(Move));
+			pv->num_moves = line.num_moves + 1;
 		}
 		// fail soft cutoff
 		if (score >= beta) return score;
 	}
-	return best_val;
-}
-
-static int ab_min(
-		const Position* pos, 
-		int depth, 
-		int alpha, 
-		int beta, 
-		PV_Line* pv,
-		const PV_Line* prev_pv) {
-
-	ASSERT(pos);
-	ASSERT(depth);
-	ASSERT(pv);
-
-	// no depth==0 needed right now because no eval function
-	PV_Line line = {0};
-	int best_val = INF;
-
-	// gen moves, insert previous pv move if available
-	// there will be a duplicate move in the list
-	Move move_list[MOVE_LIST_SIZE];
-	int move_count = 0;
-
-	// prev_pv may be null or at depth 1 there are no previous pv nodes yet
-	if (prev_pv && depth > 1) {
-		int pv_index = prev_pv->num_moves - depth + 1;
-		ASSERT(pv_index < prev_pv->num_moves);
-
-		move_list[0] = prev_pv->moves[pv_index];
-		move_count++;
-	}
-	move_count += gen_pseudo_moves(move_list + move_count, pos);
-
-	for (int i = 0; i < move_count; i++) {
-		Position copy_pos = *pos;
-		if (make_move(&copy_pos, move_list[i])) continue;
-
-		// lazy eval calculated during make move (no eval() needed)
-		int score;
-		if (depth == 1) score = copy_pos.lazy_eval;
-		else 		score = ab_max(&copy_pos, depth - 1, alpha, beta, &line, prev_pv);
-
-		// discard pv after first move so future branches don't have illegal moves
-		prev_pv = NULL;
-
-		// raise alpha and update pvline
-		if (score < best_val) {
-			best_val = score;
-			if (score < beta) {
-				beta = score;
-				pv->moves[0] = move_list[i];
-				memcpy(pv->moves + 1, line.moves, line.num_moves * sizeof(Move));
-				pv->num_moves = line.num_moves + 1;
-			}
-		}
-		// fail soft cutoff
-		if (score <= alpha) return score;
-	}
-	return best_val;
+	return alpha;
 }
 
 static Search_Result ab_search(
@@ -2597,8 +2765,7 @@ static Search_Result ab_search(
 	PV_Line pvline = {0};
 	Search_Result sr = {0};
 
-	if (position->side_to_move) sr.eval = ab_min(position, depth, alpha, beta, &pvline, prev_pv);
-	else			    sr.eval = ab_max(position, depth, alpha, beta, &pvline, prev_pv);
+	sr.eval = ab_nega(position, depth, alpha, beta, &pvline, prev_pv);
 
 	sr.pv = pvline;
 	return sr;
@@ -2607,6 +2774,8 @@ static Search_Result ab_search(
 Search_Result iterative_ab_search(const Position* position, int depth) {
 	ASSERT(position);
 	ASSERT(depth);
+
+	// TODO reimplement asp window after quiet search
 
 	Search_Result sr = {0};
 	PV_Line prev_pv = {0};
@@ -2618,24 +2787,28 @@ Search_Result iterative_ab_search(const Position* position, int depth) {
 	sr = ab_search(position, 1, alpha, beta, NULL);
 
 	// set asp window
-	alpha = sr.eval - ASP_WIN; 
-	beta = sr.eval + ASP_WIN;
+	/*
+	   alpha = sr.eval - ASP_WIN; 
+	   beta = sr.eval + ASP_WIN;
+	   */
 	prev_pv = sr.pv;
 
 	for (int d = 1; d < depth;){
 		sr = ab_search(position, d + 1, alpha, beta, &prev_pv);
 
 		// adjust asp window
-		if (sr.eval <= alpha) {
-			alpha -= ASP_WIN;
-		} else if (sr.eval >= beta) {
-			beta += ASP_WIN;
-		} else {
-			alpha = sr.eval - ASP_WIN; 
-			beta = sr.eval + ASP_WIN;
-			d++;
-			prev_pv = sr.pv;
-		}
+		/*
+		   if (sr.eval <= alpha) {
+		   alpha -= ASP_WIN;
+		   } else if (sr.eval >= beta) {
+		   beta += ASP_WIN;
+		   } else {
+		   alpha = sr.eval - ASP_WIN; 
+		   beta = sr.eval + ASP_WIN;
+		   */
+		d++;
+		prev_pv = sr.pv;
+		//}
 	}
 	return sr;
 }
@@ -2645,6 +2818,7 @@ Search_Result iterative_ab_search(const Position* position, int depth) {
  *======================================================================*/
 void init_engine(void) {
 	init_targets();
+	init_psq();
 }
 
 

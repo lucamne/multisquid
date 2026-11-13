@@ -11,11 +11,11 @@ TODO
 	- look into how to test
 	- write uci shell
 - search
-	- piece square table
+	- quiet search
 	- transposition table
 		- setup hashing
 	- make sure checkmate and draws handled
-	- switch to negamax once you understand it
+	- negascout
 	- improved move ordering
 - move
 	- decide what to do with move unmaking

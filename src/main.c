@@ -13,7 +13,7 @@ int main(int argc, char** argv) {
 	Position pos = {0};
 	load_position_from_fen(STARTING_FEN, &pos);
 
-	int depth = 10;
+	int depth = 8;
 	Search_Result sr = iterative_ab_search(&pos, depth);
 
 	print_position(&pos);

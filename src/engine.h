@@ -16,6 +16,7 @@
 
 /* Position */
 #define NUM_PIECE_TYPES 12
+#define NUM_PIECE_TYPES_PER_SIDE 6
 #define NUM_COLORS 2
 
 typedef uint64_t U64, Bitboard, Bitfield;
@@ -44,8 +45,10 @@ typedef struct {
 	// 10		= Black queenside castle
 	// 11-18	= halfmove clock
 
-	// material balance based on piece counts and piece values
-	int mat_balance;
+	// piece square values, updated incrementally during make_move()
+	int psq_mg;
+	int psq_eg;
+	int gamephase;
 } Position;
 
 /* Move */
