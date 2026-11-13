@@ -44,8 +44,8 @@ typedef struct {
 	// 10		= Black queenside castle
 	// 11-18	= halfmove clock
 
-	// low cost eval computed during make_move
-	int lazy_eval;
+	// material balance based on piece counts and piece values
+	int mat_balance;
 } Position;
 
 /* Move */

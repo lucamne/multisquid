@@ -2118,9 +2118,6 @@ static void make_move_update_bitboards(Position* position, Move move) {
 				dest_pt != WP || 
 				dest_pt != BP);
 
-		// eval update
-		position->lazy_eval -= PIECE_VALUES[src_pt];
-		position->lazy_eval += PIECE_VALUES[dest_pt];
 	}
 
 	ASSERT(is_valid_square(src));
@@ -2138,6 +2135,14 @@ static void make_move_update_bitboards(Position* position, Move move) {
 	Bitboard dest_swapper = (Bitboard)1u << dest;
 	piece_boards[dest_pt] ^= dest_swapper;
 	position->color_boards[side_to_move] ^= dest_swapper;
+
+	// eval updates
+	position->mat_balance -= PIECE_VALUES[src_pt];
+	position->mat_balance += PIECE_VALUES[dest_pt];
+	position->psq_mg -= PSQ_MG[src_pt][src];
+	position->psq_mg += PSQ_MG[dest_pt][dest];
+	position->psq_eg -= PSQ_EG[src_pt][src];
+	position->psq_eg += PSQ_EG[dest_pt][dest];
 
 	// update rook bitboards for a castle move
 	// king is handled through src and dest fields
