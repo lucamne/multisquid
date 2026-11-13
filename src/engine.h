@@ -6,7 +6,7 @@
  * Engine interface. Provides uci functions
  * plus some extras.
  *
- * TODO Make Move and Position private
+ * TODO lots of stuff can be made private eventually
  *
  * Author: Luca
  * Created: 2026/11/05
@@ -14,6 +14,7 @@
 
 #include <stdint.h>
 
+/* Position */
 #define NUM_PIECE_TYPES 12
 #define NUM_COLORS 2
 
@@ -43,10 +44,11 @@ typedef struct {
 	// 10		= Black queenside castle
 	// 11-18	= halfmove clock
 
-	// eval in centipawns calulated incrementally by make_move
-	int eval;
+	// low cost eval computed during make_move
+	int lazy_eval;
 } Position;
 
+/* Move */
 typedef U64 Move;
 // bitfield of move information
 //
@@ -63,9 +65,23 @@ typedef U64 Move;
 // 30		= need safety check
 // 31-49	= position state field
 
+/* Search */
+#define MAX_PV_LINE 50
+typedef struct {
+	int num_moves;
+	Move moves[MAX_PV_LINE];
+} PV_Line;
+
+typedef struct {
+	int eval;
+	PV_Line pv;
+} Search_Result;
+
 /*======================================================================
  * Functions
  *======================================================================*/
+Search_Result iterative_ab_search(const Position* position, int depth);
+// run an iteratively deepening alpha-beta search to depth
 void init_engine(void);
 // initializes engine
 // MUST be called before using any other engine functions

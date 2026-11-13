@@ -357,7 +357,7 @@ int load_position_from_fen(const char* fen, Position* position) {
 				continue;
 		}
 		// update eval
-		position->eval += PIECE_VALUES[pt];
+		position->lazy_eval += PIECE_VALUES[pt];
 
 		// add piece to bitboard
 		set_piece(position, pt, rf_to_sq(rank, file));
@@ -2098,6 +2098,7 @@ int gen_pseudo_moves(Move* move_list, const Position* position) {
 
 // swap source piece from src to dest, handle castling as well
 // could be used to make or unmake move
+// updates lazy eval as well
 static void make_move_update_bitboards(Position* position, Move move) {
 	const int side_to_move = (int)position->side_to_move;
 	const int src = (int)get_move_src(move);
@@ -2116,6 +2117,10 @@ static void make_move_update_bitboards(Position* position, Move move) {
 				dest_pt != BK || 
 				dest_pt != WP || 
 				dest_pt != BP);
+
+		// eval update
+		position->lazy_eval -= PIECE_VALUES[src_pt];
+		position->lazy_eval += PIECE_VALUES[dest_pt];
 	}
 
 	ASSERT(is_valid_square(src));
@@ -2193,6 +2198,9 @@ static void make_move_update_bitboards(Position* position, Move move) {
 		Bitboard cap_swapper = (Bitboard)1u << cap_square;
 		piece_boards[cap_pt] ^= cap_swapper;
 		position->color_boards[side_to_move ^ 1u] ^= cap_swapper;
+
+		// eval update
+		position->lazy_eval -= PIECE_VALUES[cap_pt];
 	}
 	position->occupied_board = position->color_boards[WHITE] | 
 		position->color_boards[BLACK];
@@ -2439,6 +2447,193 @@ position->fullmoves -= position->side_to_move;
 make_move_update_bitboards(position, move);
 }
 */
+
+/*======================================================================
+ * Search
+ *======================================================================*/
+static const int INF = 999999;
+
+static int ab_min(
+		const Position* pos, 
+		int depth, 
+		int alpha, 
+		int beta, 
+		PV_Line* pv,
+		const PV_Line* prev_pv);
+
+static int ab_max(
+		const Position* pos, 
+		int depth, 
+		int alpha, 
+		int beta, 
+		PV_Line* pv,
+		const PV_Line* prev_pv) {
+
+	ASSERT(pos);
+	ASSERT(depth);
+	ASSERT(pv);
+
+	// no depth==0 needed right now because no eval function
+	PV_Line line = {0};
+	int best_val = -INF;
+
+	// gen moves, insert previous pv move if available
+	// there will be a duplicate move in the list
+	Move move_list[MOVE_LIST_SIZE];
+	int move_count = 0;
+
+	// prev_pv may be null or at depth 1 there are no previous pv nodes yet
+	if (prev_pv && depth > 1) {
+		int pv_index = prev_pv->num_moves - depth + 1;
+		ASSERT(pv_index < prev_pv->num_moves);
+
+		move_list[0] = prev_pv->moves[pv_index];
+		move_count++;
+	}
+	move_count += gen_pseudo_moves(move_list + move_count, pos);
+
+	for (int i = 0; i < move_count; i++) {
+		Position copy_pos = *pos;
+		if (make_move(&copy_pos, move_list[i])) continue;
+
+		// lazy eval calculated during make move (no eval() needed)
+		int score;
+		if (depth == 1) score = copy_pos.lazy_eval;
+		else 		score = ab_min(&copy_pos, depth - 1, alpha, beta, &line, prev_pv);
+
+		// discard pv after first move so future branches don't have illegal moves
+		prev_pv = NULL;
+
+		// raise alpha and update pvline
+		if (score > best_val) {
+			best_val = score;
+			if (score > alpha) {
+				alpha = score;
+				pv->moves[0] = move_list[i];
+				memcpy(pv->moves + 1, line.moves, line.num_moves * sizeof(Move));
+				pv->num_moves = line.num_moves + 1;
+			}
+		}
+		// fail soft cutoff
+		if (score >= beta) return score;
+	}
+	return best_val;
+}
+
+static int ab_min(
+		const Position* pos, 
+		int depth, 
+		int alpha, 
+		int beta, 
+		PV_Line* pv,
+		const PV_Line* prev_pv) {
+
+	ASSERT(pos);
+	ASSERT(depth);
+	ASSERT(pv);
+
+	// no depth==0 needed right now because no eval function
+	PV_Line line = {0};
+	int best_val = INF;
+
+	// gen moves, insert previous pv move if available
+	// there will be a duplicate move in the list
+	Move move_list[MOVE_LIST_SIZE];
+	int move_count = 0;
+
+	// prev_pv may be null or at depth 1 there are no previous pv nodes yet
+	if (prev_pv && depth > 1) {
+		int pv_index = prev_pv->num_moves - depth + 1;
+		ASSERT(pv_index < prev_pv->num_moves);
+
+		move_list[0] = prev_pv->moves[pv_index];
+		move_count++;
+	}
+	move_count += gen_pseudo_moves(move_list + move_count, pos);
+
+	for (int i = 0; i < move_count; i++) {
+		Position copy_pos = *pos;
+		if (make_move(&copy_pos, move_list[i])) continue;
+
+		// lazy eval calculated during make move (no eval() needed)
+		int score;
+		if (depth == 1) score = copy_pos.lazy_eval;
+		else 		score = ab_max(&copy_pos, depth - 1, alpha, beta, &line, prev_pv);
+
+		// discard pv after first move so future branches don't have illegal moves
+		prev_pv = NULL;
+
+		// raise alpha and update pvline
+		if (score < best_val) {
+			best_val = score;
+			if (score < beta) {
+				beta = score;
+				pv->moves[0] = move_list[i];
+				memcpy(pv->moves + 1, line.moves, line.num_moves * sizeof(Move));
+				pv->num_moves = line.num_moves + 1;
+			}
+		}
+		// fail soft cutoff
+		if (score <= alpha) return score;
+	}
+	return best_val;
+}
+
+static Search_Result ab_search(
+		const Position* position, 
+		int depth, 
+		int alpha, 
+		int beta, 
+		const PV_Line* prev_pv) {
+
+	ASSERT(position);
+	ASSERT(depth);
+
+	PV_Line pvline = {0};
+	Search_Result sr = {0};
+
+	if (position->side_to_move) sr.eval = ab_min(position, depth, alpha, beta, &pvline, prev_pv);
+	else			    sr.eval = ab_max(position, depth, alpha, beta, &pvline, prev_pv);
+
+	sr.pv = pvline;
+	return sr;
+}
+
+Search_Result iterative_ab_search(const Position* position, int depth) {
+	ASSERT(position);
+	ASSERT(depth);
+
+	Search_Result sr = {0};
+	PV_Line prev_pv = {0};
+	const int ASP_WIN = 50;
+	int alpha = -INF;
+	int beta = INF;
+
+	// loop 1 has null prev_pv
+	sr = ab_search(position, 1, alpha, beta, NULL);
+
+	// set asp window
+	alpha = sr.eval - ASP_WIN; 
+	beta = sr.eval + ASP_WIN;
+	prev_pv = sr.pv;
+
+	for (int d = 1; d < depth;){
+		sr = ab_search(position, d + 1, alpha, beta, &prev_pv);
+
+		// adjust asp window
+		if (sr.eval <= alpha) {
+			alpha -= ASP_WIN;
+		} else if (sr.eval >= beta) {
+			beta += ASP_WIN;
+		} else {
+			alpha = sr.eval - ASP_WIN; 
+			beta = sr.eval + ASP_WIN;
+			d++;
+			prev_pv = sr.pv;
+		}
+	}
+	return sr;
+}
 
 /*======================================================================
  * Initialization

@@ -7,9 +7,19 @@ Design
 - lazy SMP on basic ab pruning (asp windows, iterative deepening, shared tt table)
 
 TODO
+- testing
+	- look into how to test
+	- write uci shell
+- search
+	- piece square table
+	- transposition table
+		- setup hashing
+	- make sure checkmate and draws handled
+	- switch to negamax once you understand it
+	- improved move ordering
 - move
 	- decide what to do with move unmaking
 		- decide what to do with move->state_field stuff
 		- if not unmaking, pack side to move and full move
-- shell
-	- so i don't have to recompile all the time to test different stuff
+		- leaning towards not unmaking, but going to leave the code
+		commented out for now and come back to it
