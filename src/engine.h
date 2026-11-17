@@ -49,6 +49,9 @@ typedef struct {
 	int psq_mg;
 	int psq_eg;
 	int gamephase;
+
+	// unique(ish) hash of position
+	U64 hash;
 } Position;
 
 /* Move */

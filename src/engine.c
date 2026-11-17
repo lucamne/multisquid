@@ -563,6 +563,23 @@ static U64 get_queenside_castle(const Position* p) {
 	return p->state_field & (POS_WQ_CASTLE << castle_bit_offset);
 }
 
+/* update position hash */
+// add or remove piece at square from hash
+static void hash_piece(Position* pos, Piece_Type pt, int square) {
+	ASSERT(pos);
+	ASSERT(is_valid_pt(pt));
+	ASSERT(is_valid_square(pt));
+	pos->hash ^= ZOBRIST_PIECE_SQUARE[pt][square];
+}
+
+// flip side to move
+static void hash_side(Position* pos) {
+	ASSERT(pos);
+	pos->hash ^= ZOBRIST_SIDE;
+}
+
+// TODO work on hashing
+
 static int sq_to_rank(int square) { 
 	ASSERT(is_valid_square(square));
 	return SQUARE_TO_RANK[square];
