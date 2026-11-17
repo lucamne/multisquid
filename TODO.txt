@@ -12,8 +12,8 @@ TODO
 	- formal elo testing 
 	- write uci shell
 - position
-	- change ep square encoding to ep file
-		- this would benefit zobrist key lookups
+	- ep logic needs to be improved for both move making
+		and for hashing
 	- add side to move and fullmoves to bitfield encoding
 - search
 	- zobrist hashing

@@ -115,5 +115,7 @@ long long int run_perft(const char* fen, int max_depth);
 // return nodes found at max depth
 void run_perft_validation(void);
 // run a perft validation sweet to validate move generator
+void hash_test(void);
+// test position hashes are generated correctly
 
 #endif

@@ -386,22 +386,22 @@ static void init_zobrist_keys(void) {
  *======================================================================*/
 // Position state field constants
 #define POS_EP_ACTIVE_SHIFT 0
+#define POS_EP_STATUS_SHIFT 0	// combines ep active and ep square
 #define POS_EP_SQUARE_SHIFT 1
-#define POS_EP_STATUS_SHIFT POS_EP_ACTIVE
+#define POS_ALL_CASTLE_SHIFT 7	// combines all castle rights
 #define POS_WK_CASTLE_SHIFT 7
 #define POS_WQ_CASTLE_SHIFT 8
 #define POS_BK_CASTLE_SHIFT 9
 #define POS_BQ_CASTLE_SHIFT 10
-#define POS_ALL_CASTLE_SHIFT POS_WK_CASTLE
 #define POS_HALFMOVES_SHIFT 11
 static const U64 POS_EP_ACTIVE = 0x1u << POS_EP_ACTIVE_SHIFT;
 static const U64 POS_EP_SQUARE = 0x3fu << POS_EP_SQUARE_SHIFT;
-static const U64 POS_EP_STATUS = POS_EP_ACTIVE | POS_EP_SQUARE;
+static const U64 POS_EP_STATUS = 0x7fu << POS_EP_STATUS_SHIFT;
 static const U64 POS_WK_CASTLE = 0x1u << POS_WK_CASTLE_SHIFT;
 static const U64 POS_WQ_CASTLE = 0x1u << POS_WQ_CASTLE_SHIFT;
 static const U64 POS_BK_CASTLE = 0x1u << POS_BK_CASTLE_SHIFT;
 static const U64 POS_BQ_CASTLE = 0x1u << POS_BQ_CASTLE_SHIFT;
-static const U64 POS_ALL_CASTLE = POS_WK_CASTLE | POS_WQ_CASTLE | POS_BK_CASTLE | POS_BQ_CASTLE;
+static const U64 POS_ALL_CASTLE = 0xfu << POS_ALL_CASTLE_SHIFT;
 static const U64 POS_HALFMOVES = 0xffu << POS_HALFMOVES_SHIFT;
 
 static const int EMPTY_SQUARE = -1;
@@ -606,14 +606,14 @@ static void hash_side(Position* pos) {
 static void hash_ep(Position* pos) {
 	ASSERT(pos);
 	Bitfield ep_stat = get_ep_status(pos);
-	pos->hash &= ZOBRIST_EP[ep_stat];
+	pos->hash ^= ZOBRIST_EP[ep_stat];
 }
 
 // add/remove current castle rights from hash
 static void hash_castle(Position* pos) {
 	ASSERT(pos);
 	Bitfield castle_rights = get_all_castle(pos);
-	pos->hash &= ZOBRIST_CASTLE[castle_rights];
+	pos->hash ^= ZOBRIST_CASTLE[castle_rights];
 }
 
 static int sq_to_rank(int square) { 
@@ -670,20 +670,26 @@ int load_position_from_fen(const char* fen, Position* position) {
 				  file += c - '0';
 				  continue;
 		}
+		// update eval, bitboard, hash
 		int sq = rf_to_sq(rank, file);
-		// update eval
 		update_psq_add(position, pt, sq);
-		// add piece to bitboard
 		set_piece(position, pt, sq);
+		hash_piece(position, pt, sq);
 		file++;
 	}
 
 	// set side to move
 	char c = fen[++string_pos];
 	switch (c) {
-		case 'w': position->side_to_move = WHITE; break;
-		case 'b': position->side_to_move = BLACK; break;
-		default:  return 1;
+		case 'w': 
+			position->side_to_move = WHITE; 
+			break;
+		case 'b': 
+			position->side_to_move = BLACK; 
+			hash_side(position); 
+			break;
+		default:  
+			return 1;
 	}
 
 	// set castle rights, expect to be zeroed initially
@@ -700,6 +706,7 @@ int load_position_from_fen(const char* fen, Position* position) {
 		}
 		c = fen[++string_pos];
 	}
+	hash_castle(position);
 
 	// set ep square
 	c = fen[++string_pos];
@@ -716,6 +723,7 @@ int load_position_from_fen(const char* fen, Position* position) {
 	} else {
 		return 1;
 	}
+	hash_ep(position);
 
 	// get halfmove clock
 	string_pos+=2;
@@ -2820,6 +2828,10 @@ static void make_move_update_bitboards(Position* position, Move move) {
 	update_psq_remove(position, src_pt, src);
 	update_psq_add(position, dest_pt, dest);
 
+	// hash updates
+	hash_piece(position, src_pt, src);
+	hash_piece(position, dest_pt, dest);
+
 	// update rook bitboards for a castle move
 	// king is handled through src and dest fields
 	const Bitboard krook_swap = (Bitboard)0b10100000u;
@@ -2873,8 +2885,12 @@ static void make_move_update_bitboards(Position* position, Move move) {
 		position->color_boards[side_to_move] ^= rook_swapper;
 
 		// update eval
-		update_psq_add(position, rook_pt, rook_dest);
 		update_psq_remove(position, rook_pt, rook_src);
+		update_psq_add(position, rook_pt, rook_dest);
+
+		// update hash
+		hash_piece(position, rook_pt, rook_src);
+		hash_piece(position, rook_pt, rook_dest);
 
 	} else if (get_move_is_capture(move)) {
 		int cap_square = dest;
@@ -2901,6 +2917,9 @@ static void make_move_update_bitboards(Position* position, Move move) {
 
 		// eval update
 		update_psq_remove(position, cap_pt, cap_square);
+
+		// hash update
+		hash_piece(position, cap_pt, cap_square);
 	}
 	position->occupied_board = position->color_boards[WHITE] | 
 		position->color_boards[BLACK];
@@ -3112,9 +3131,12 @@ int make_move(Position* position, Move move) {
 	// incremental updates
 	ASSERT(side_to_move == 1 || side_to_move == 0);
 	position->fullmoves += side_to_move;
+
 	position->side_to_move ^= 1u;
+	hash_side(position);
 
 	// update ep square
+	hash_ep(position);
 	if (src_pt == WP + COLOR_OFFSET * side_to_move &&
 			dest - (src - 4 * NUM_FILES * side_to_move) == 2 * NUM_FILES) {
 		set_ep_active(position);
@@ -3122,9 +3144,12 @@ int make_move(Position* position, Move move) {
 	} else {
 		clear_ep_active(position);
 	}
+	hash_ep(position);
 
 	// update castle rights
+	hash_castle(position);
 	position->state_field &= castle_rights_updater[src] & castle_rights_updater[dest];
+	hash_castle(position);
 
 	// update halfmoves
 	if (get_move_is_capture(move) || src_pt == WP + COLOR_OFFSET * side_to_move)
@@ -3305,7 +3330,37 @@ void init_engine(void) {
 /*======================================================================
  * Debugging
  *======================================================================*/
-#define NUM_TEST_POSITIONS 6
+// test hash is the same for identical positions
+// this will break if move encoding changes
+#define HASH_TEST_END_FEN "Qnbq1rk1/p1p2ppp/5n2/2bpp3/8/3BPN2/1PPP1PPP/RNBQ1RK1 w - - 0 10"
+#define HASH_TEST_START_FEN "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+void hash_test(void) {
+	Position p = {0};
+	load_position_from_fen(HASH_TEST_END_FEN, &p);
+	U64 hash0 = p.hash;
+
+	p = (Position){0};
+	load_position_from_fen(HASH_TEST_START_FEN, &p);
+
+	// very fragile move index list
+	int mis[18] = {
+		1, 8, 14, 21, 14, 16, 0, 32, 0, 27, 
+		9, 28, 22, 26, 18, 28, 42, 4
+	};
+
+	Move ml[MOVE_LIST_SIZE];
+	for (int i = 0; i < 18; i++) {
+		gen_pseudo_moves(ml, &p);
+		make_move(&p, ml[mis[i]]);
+	}
+
+	U64 hash1 = p.hash;
+
+	if (hash1 == hash0)
+		printf("hash test passed!!\n");
+	else 
+		printf("hash test failed!!\n");
+}
 
 void print_position(const Position* position) {
 	printf("\n    =================================\n");
@@ -3440,6 +3495,7 @@ long long int run_perft(const char* fen, int max_depth) {
 	return node_count;
 }
 
+#define NUM_TEST_POSITIONS 6
 void run_perft_validation(void) {
 	char* fens[NUM_TEST_POSITIONS] = {
 		"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",

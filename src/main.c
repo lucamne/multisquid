@@ -12,6 +12,7 @@
 
 int main(int argc, char** argv) {
 	init_engine();
+	hash_test();
 	// run_perft(STARTING_FEN, 5);
 	// run_perft_validation();
 
@@ -45,6 +46,7 @@ int main(int argc, char** argv) {
 
 
 
+	/*
 	// search test
 	Position pos = {0};
 	load_position_from_fen(TEST, &pos);
@@ -55,6 +57,7 @@ int main(int argc, char** argv) {
 	print_position(&pos);
 	printf("eval:%d\n", sr.eval);
 	print_moves(sr.pv.moves, sr.pv.num_moves);
+	*/
 
 	return 0;
 }
