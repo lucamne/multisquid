@@ -8,15 +8,18 @@ Design
 
 TODO
 - testing
-	- look into how to test
+	- test copy-make vs make-unmake
+	- formal elo testing 
 	- write uci shell
 - search
-	- quiet search
+	- zobrist hashing
 	- transposition table
-		- setup hashing
-	- make sure checkmate and draws handled
-	- negascout
-	- improved move ordering
+		- move ordering
+	- 3fold repetition, 50 move rule
+	- negascout 
+	- clean up asp windows
+	- it seems like the engine will head straight for mate
+		if it does not, will have to fix
 - move
 	- decide what to do with move unmaking
 		- decide what to do with move->state_field stuff

@@ -92,6 +92,10 @@ int gen_pseudo_moves(Move* move_list, const Position* position);
 // generate pseudo legal moves from position and store in move_list
 // move_list memory should be handled by calller and be adequately large
 // return number of moves in list
+int gen_pseudo_tactical_moves(Move* move_list, const Position* position);
+// generate pseudo legal TACTICAL moves from position and store in move_list
+// move_list memory should be handled by calller and be adequately large
+// return number of moves in list
 int load_position_from_fen(const char* fen, Position* position);
 // populate supplied Position from fen
 // return 0 on success; 1 on ill-formatted fen
