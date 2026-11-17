@@ -316,10 +316,12 @@ static int eval(const Position* pos) {
  *======================================================================*/
 // zobrist keys
 #define NUM_CASTLE_PERMS 16
+#define NUM_EP_PERMS 128	//6bits for square, 1 bit for active
 static U64 ZOBRIST_PIECE_SQUARE[NUM_PIECE_TYPES][NUM_SQUARES];
 static U64 ZOBRIST_SIDE;
 static U64 ZOBRIST_CASTLE[NUM_CASTLE_PERMS];
-static U64 ZOBRIST_EP[NUM_FILES];
+static U64 ZOBRIST_EP[NUM_EP_PERMS];
+
 // data used by prng
 typedef struct Ranctx { U64 a; U64 b; U64 c; U64 d; } Ranctx;
 
@@ -345,26 +347,34 @@ static void init_prng(Ranctx *x, U64 seed) {
 
 // init zobrist keys for hashing
 // call during engine initialization
-static init_zobrist_keys(void) {
+static void init_zobrist_keys(void) {
 	Ranctx ranctx;
 	const U64 PRNG_SEED = 0xd6356ab04df90041;
-
 	init_prng(&ranctx, PRNG_SEED);
-
+	// piece square keys
 	for (Piece_Type pt = WP; pt <= BK; pt++) {
 		for (int s = 0; s < NUM_SQUARES; s++) {
 			ZOBRIST_PIECE_SQUARE[pt][s] = get_rand(&ranctx);
 		}
 	}
 
+	// side to move
 	ZOBRIST_SIDE = get_rand(&ranctx);
 
+	// castling
 	for (int i = 0; i < NUM_CASTLE_PERMS; i++) {
 		ZOBRIST_CASTLE[i] = get_rand(&ranctx);
 	}
 
-	for (int i = 0; i < NUM_FILES; i++) {
+	// ep square
+	// active squares get their own key
+	for (int i = 0; i <= 0x3f; i++) {
 		ZOBRIST_EP[i] = get_rand(&ranctx);
+	}
+	// all inactive squares get same hash
+	U64 no_ep = get_rand(&ranctx);
+	for (int i = 0x40; i < NUM_EP_PERMS; i++) {
+		ZOBRIST_EP[i] = no_ep;
 	}
 }
 
@@ -377,17 +387,21 @@ static init_zobrist_keys(void) {
 // Position state field constants
 #define POS_EP_ACTIVE_SHIFT 0
 #define POS_EP_SQUARE_SHIFT 1
+#define POS_EP_STATUS_SHIFT POS_EP_ACTIVE
 #define POS_WK_CASTLE_SHIFT 7
 #define POS_WQ_CASTLE_SHIFT 8
 #define POS_BK_CASTLE_SHIFT 9
 #define POS_BQ_CASTLE_SHIFT 10
+#define POS_ALL_CASTLE_SHIFT POS_WK_CASTLE
 #define POS_HALFMOVES_SHIFT 11
 static const U64 POS_EP_ACTIVE = 0x1u << POS_EP_ACTIVE_SHIFT;
 static const U64 POS_EP_SQUARE = 0x3fu << POS_EP_SQUARE_SHIFT;
+static const U64 POS_EP_STATUS = POS_EP_ACTIVE | POS_EP_SQUARE;
 static const U64 POS_WK_CASTLE = 0x1u << POS_WK_CASTLE_SHIFT;
 static const U64 POS_WQ_CASTLE = 0x1u << POS_WQ_CASTLE_SHIFT;
 static const U64 POS_BK_CASTLE = 0x1u << POS_BK_CASTLE_SHIFT;
 static const U64 POS_BQ_CASTLE = 0x1u << POS_BQ_CASTLE_SHIFT;
+static const U64 POS_ALL_CASTLE = POS_WK_CASTLE | POS_WQ_CASTLE | POS_BK_CASTLE | POS_BQ_CASTLE;
 static const U64 POS_HALFMOVES = 0xffu << POS_HALFMOVES_SHIFT;
 
 static const int EMPTY_SQUARE = -1;
@@ -458,6 +472,11 @@ static U64 get_ep_square(const Position* p) {
 	return (p->state_field & POS_EP_SQUARE) >> POS_EP_SQUARE_SHIFT;
 }
 
+static U64 get_ep_status(const Position* p) {
+	ASSERT(p);
+	return (p->state_field & POS_EP_STATUS) >> POS_EP_STATUS_SHIFT;
+}
+
 static U64 get_wk_castle(const Position* p) {
 	ASSERT(p);
 	return (p->state_field & POS_WK_CASTLE) >> POS_WK_CASTLE_SHIFT;
@@ -476,6 +495,11 @@ static U64 get_bk_castle(const Position* p) {
 static U64 get_bq_castle(const Position* p) {
 	ASSERT(p);
 	return (p->state_field & POS_BQ_CASTLE) >> POS_BQ_CASTLE_SHIFT;
+}
+
+static U64 get_all_castle(const Position* p) {
+	ASSERT(p);
+	return (p->state_field & POS_ALL_CASTLE) >> POS_ALL_CASTLE_SHIFT;
 }
 
 static U64 get_halfmoves(const Position* p) {
@@ -578,7 +602,19 @@ static void hash_side(Position* pos) {
 	pos->hash ^= ZOBRIST_SIDE;
 }
 
-// TODO work on hashing
+// add/remove current ep square and active status from hash
+static void hash_ep(Position* pos) {
+	ASSERT(pos);
+	Bitfield ep_stat = get_ep_status(pos);
+	pos->hash &= ZOBRIST_EP[ep_stat];
+}
+
+// add/remove current castle rights from hash
+static void hash_castle(Position* pos) {
+	ASSERT(pos);
+	Bitfield castle_rights = get_all_castle(pos);
+	pos->hash &= ZOBRIST_CASTLE[castle_rights];
+}
 
 static int sq_to_rank(int square) { 
 	ASSERT(is_valid_square(square));

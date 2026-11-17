@@ -11,6 +11,10 @@ TODO
 	- test copy-make vs make-unmake
 	- formal elo testing 
 	- write uci shell
+- position
+	- change ep square encoding to ep file
+		- this would benefit zobrist key lookups
+	- add side to move and fullmoves to bitfield encoding
 - search
 	- zobrist hashing
 	- transposition table
