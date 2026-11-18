@@ -367,14 +367,14 @@ static void init_zobrist_keys(void) {
 	}
 
 	// ep square
-	// active squares get their own key
-	for (int i = 0; i <= 0x3f; i++) {
-		ZOBRIST_EP[i] = get_rand(&ranctx);
-	}
-	// all inactive squares get same hash
+	// all inactive squares get same key
 	U64 no_ep = get_rand(&ranctx);
-	for (int i = 0x40; i < NUM_EP_PERMS; i++) {
+	for (int i = 0; i <= 0x3f; i++) {
 		ZOBRIST_EP[i] = no_ep;
+	}
+	// active squares get their own key
+	for (int i = 0x40; i < NUM_EP_PERMS; i++) {
+		ZOBRIST_EP[i] = get_rand(&ranctx);
 	}
 }
 
@@ -596,22 +596,14 @@ static void hash_piece(Position* pos, Piece_Type pt, int square) {
 	pos->hash ^= ZOBRIST_PIECE_SQUARE[pt][square];
 }
 
-// flip side to move
-static void hash_side(Position* pos) {
+// xor keys for current position state with position hash
+static void hash_state(Position* pos) {
 	ASSERT(pos);
-	pos->hash ^= ZOBRIST_SIDE;
-}
+	pos->hash ^= ZOBRIST_SIDE * pos->side_to_move;
 
-// add/remove current ep square and active status from hash
-static void hash_ep(Position* pos) {
-	ASSERT(pos);
-	Bitfield ep_stat = get_ep_status(pos);
-	pos->hash ^= ZOBRIST_EP[ep_stat];
-}
+	Bitfield ep_status = get_ep_status(pos);
+	pos->hash ^= ZOBRIST_EP[ep_status];
 
-// add/remove current castle rights from hash
-static void hash_castle(Position* pos) {
-	ASSERT(pos);
 	Bitfield castle_rights = get_all_castle(pos);
 	pos->hash ^= ZOBRIST_CASTLE[castle_rights];
 }
@@ -686,7 +678,6 @@ int load_position_from_fen(const char* fen, Position* position) {
 			break;
 		case 'b': 
 			position->side_to_move = BLACK; 
-			hash_side(position); 
 			break;
 		default:  
 			return 1;
@@ -706,7 +697,6 @@ int load_position_from_fen(const char* fen, Position* position) {
 		}
 		c = fen[++string_pos];
 	}
-	hash_castle(position);
 
 	// set ep square
 	c = fen[++string_pos];
@@ -723,7 +713,6 @@ int load_position_from_fen(const char* fen, Position* position) {
 	} else {
 		return 1;
 	}
-	hash_ep(position);
 
 	// get halfmove clock
 	string_pos+=2;
@@ -775,6 +764,7 @@ int load_position_from_fen(const char* fen, Position* position) {
 	position->color_boards[BLACK] = black_pieces;
 	position->occupied_board = white_pieces | black_pieces;
 
+	hash_state(position);
 	return 0;
 }
 
@@ -3128,15 +3118,15 @@ int make_move(Position* position, Move move) {
 		}
 	}
 
+	// remove current state from hash
+	hash_state(position);
+
 	// incremental updates
 	ASSERT(side_to_move == 1 || side_to_move == 0);
 	position->fullmoves += side_to_move;
-
 	position->side_to_move ^= 1u;
-	hash_side(position);
 
 	// update ep square
-	hash_ep(position);
 	if (src_pt == WP + COLOR_OFFSET * side_to_move &&
 			dest - (src - 4 * NUM_FILES * side_to_move) == 2 * NUM_FILES) {
 		set_ep_active(position);
@@ -3144,12 +3134,9 @@ int make_move(Position* position, Move move) {
 	} else {
 		clear_ep_active(position);
 	}
-	hash_ep(position);
 
 	// update castle rights
-	hash_castle(position);
 	position->state_field &= castle_rights_updater[src] & castle_rights_updater[dest];
-	hash_castle(position);
 
 	// update halfmoves
 	if (get_move_is_capture(move) || src_pt == WP + COLOR_OFFSET * side_to_move)
@@ -3157,6 +3144,8 @@ int make_move(Position* position, Move move) {
 	else
 		set_halfmoves(position, (int)get_halfmoves(position) + 1);
 
+	// add updated state to hash
+	hash_state(position);
 	return 0;
 }
 
@@ -3332,7 +3321,7 @@ void init_engine(void) {
  *======================================================================*/
 // test hash is the same for identical positions
 // this will break if move encoding changes
-#define HASH_TEST_END_FEN "Qnbq1rk1/p1p2ppp/5n2/2bpp3/8/3BPN2/1PPP1PPP/RNBQ1RK1 w - - 0 10"
+#define HASH_TEST_END_FEN "Qnbq1rk1/p1p2ppp/5n2/2bpp3/8/3BPN2/1PPP1PPP/RNBQ1RK1 w - d6 0 10"
 #define HASH_TEST_START_FEN "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 void hash_test(void) {
 	Position p = {0};
@@ -3353,6 +3342,7 @@ void hash_test(void) {
 		gen_pseudo_moves(ml, &p);
 		make_move(&p, ml[mis[i]]);
 	}
+	print_position(&p);
 
 	U64 hash1 = p.hash;
 
