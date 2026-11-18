@@ -6,7 +6,7 @@
  * Engine interface. Provides uci functions
  * plus some extras.
  *
- * TODO Make Move and Position private
+ * TODO lots of stuff can be made private eventually
  *
  * Author: Luca
  * Created: 2026/11/05
@@ -14,7 +14,9 @@
 
 #include <stdint.h>
 
+/* Position */
 #define NUM_PIECE_TYPES 12
+#define NUM_PIECE_TYPES_PER_SIDE 6
 #define NUM_COLORS 2
 
 typedef uint64_t U64, Bitboard, Bitfield;
@@ -43,8 +45,16 @@ typedef struct {
 	// 10		= Black queenside castle
 	// 11-18	= halfmove clock
 
+	// piece square values, updated incrementally during make_move()
+	int psq_mg;
+	int psq_eg;
+	int gamephase;
+
+	// unique(ish) hash of position
+	U64 hash;
 } Position;
 
+/* Move */
 typedef U64 Move;
 // bitfield of move information
 //
@@ -61,14 +71,32 @@ typedef U64 Move;
 // 30		= need safety check
 // 31-49	= position state field
 
+/* Search */
+#define MAX_PV_LINE 50
+typedef struct {
+	int num_moves;
+	Move moves[MAX_PV_LINE];
+} PV_Line;
+
+typedef struct {
+	int eval;
+	PV_Line pv;
+} Search_Result;
+
 /*======================================================================
  * Functions
  *======================================================================*/
+Search_Result iterative_ab_search(const Position* position, int depth);
+// run an iteratively deepening alpha-beta search to depth
 void init_engine(void);
 // initializes engine
 // MUST be called before using any other engine functions
 int gen_pseudo_moves(Move* move_list, const Position* position);
 // generate pseudo legal moves from position and store in move_list
+// move_list memory should be handled by calller and be adequately large
+// return number of moves in list
+int gen_pseudo_tactical_moves(Move* move_list, const Position* position);
+// generate pseudo legal TACTICAL moves from position and store in move_list
 // move_list memory should be handled by calller and be adequately large
 // return number of moves in list
 int load_position_from_fen(const char* fen, Position* position);
@@ -87,5 +115,7 @@ long long int run_perft(const char* fen, int max_depth);
 // return nodes found at max depth
 void run_perft_validation(void);
 // run a perft validation sweet to validate move generator
+void hash_test(void);
+// test position hashes are generated correctly
 
 #endif

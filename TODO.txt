@@ -7,9 +7,26 @@ Design
 - lazy SMP on basic ab pruning (asp windows, iterative deepening, shared tt table)
 
 TODO
+- testing
+	- test copy-make vs make-unmake
+	- formal elo testing 
+	- write uci shell
+- position
+	- ep logic needs to be improved for both move making
+		and for hashing
+	- add side to move and fullmoves to bitfield encoding
+- search
+	- zobrist hashing
+	- transposition table
+		- move ordering
+	- 3fold repetition, 50 move rule
+	- negascout 
+	- clean up asp windows
+	- it seems like the engine will head straight for mate
+		if it does not, will have to fix
 - move
 	- decide what to do with move unmaking
 		- decide what to do with move->state_field stuff
 		- if not unmaking, pack side to move and full move
-- shell
-	- so i don't have to recompile all the time to test different stuff
+		- leaning towards not unmaking, but going to leave the code
+		commented out for now and come back to it
