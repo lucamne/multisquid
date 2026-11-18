@@ -308,7 +308,6 @@ static int eval(const Position* pos) {
 	return interp - (2 * interp * pos->side_to_move);
 }
 
-
 /*======================================================================
  * Zobrist Keys
  *
@@ -587,7 +586,6 @@ static U64 get_queenside_castle(const Position* p) {
 	return p->state_field & (POS_WQ_CASTLE << castle_bit_offset);
 }
 
-/* update position hash */
 // add or remove piece at square from hash
 static void hash_piece(Position* pos, Piece_Type pt, int square) {
 	ASSERT(pos);
@@ -3165,7 +3163,14 @@ make_move_update_bitboards(position, move);
 /*======================================================================
  * Search
  *======================================================================*/
+#define MAX_HALFMOVES 50	// max halfmoves before position is a draw
 static const int INF = 999999;
+
+// records position history for drawa by repetition checking
+typedef struct {
+	U64 positions[MAX_HALFMOVES];
+	int num_positions;
+} History;
 
 static int quiesce(
 		const Position* pos, 
@@ -3199,10 +3204,25 @@ static int ab_nega(
 		int depth, 
 		int alpha, 
 		int beta, 
-		PV_Line* pv) {
+		PV_Line* pv,
+		History* hist) {
 
 	ASSERT(pos);
 	ASSERT(pv);
+
+	// add position to history
+	hist->positions[hist->num_positions++] = pos->hash;
+
+	// check 50 move draw
+	int halfmoves = (int)get_halfmoves(pos);
+	if (halfmoves >= MAX_HALFMOVES) return 0;
+	// check for draw by repetition
+	// same position can occur only even number of halfmoves back
+	// 	and only up until the last pawn advance or capture
+	int hcount = hist->num_positions;
+	for (int i = hcount - 5; i >= 0 && hcount - i > halfmoves; i-=2) {
+		if (hist->positions[i] == pos->hash) return 0;
+	}
 
 	if (!depth)
 		return quiesce(pos, alpha, beta);
@@ -3216,8 +3236,12 @@ static int ab_nega(
 		Position copy_pos = *pos;
 		if (make_move(&copy_pos, move_list[i])) continue;
 
+
 		legal_move_found = 1;
-		int score = -ab_nega(&copy_pos, depth - 1, -beta, -alpha, &line);
+		int score = -ab_nega(&copy_pos, depth - 1, -beta, -alpha, &line, hist);
+
+		// remove last position from history
+		hist->num_positions--;
 
 		// raise alpha and update pvline
 		if (score > alpha) {
@@ -3257,7 +3281,9 @@ static Search_Result ab_search(
 	PV_Line pvline = {0};
 	Search_Result sr = {0};
 
-	sr.eval = ab_nega(position, depth, alpha, beta, &pvline);
+	History hist = {0};
+
+	sr.eval = ab_nega(position, depth, alpha, beta, &pvline, &hist);
 
 	sr.pv = pvline;
 	return sr;
