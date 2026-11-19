@@ -50,7 +50,7 @@ int main(int argc, char** argv) {
 	Position pos = {0};
 	load_position_from_fen(TEST, &pos);
 
-	int depth = 8;
+	int depth = 10;
 	Search_Result sr = iterative_ab_search(&pos, depth);
 
 	print_position(&pos);

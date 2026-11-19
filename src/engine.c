@@ -3220,7 +3220,7 @@ static int ab_nega(
 	// same position can occur only even number of halfmoves back
 	// 	and only up until the last pawn advance or capture
 	int hcount = hist->num_positions;
-	for (int i = hcount - 5; i >= 0 && hcount - i > halfmoves; i-=2) {
+	for (int i = hcount - 5; i >= 0 && hcount - i >= halfmoves; i-=2) {
 		if (hist->positions[i] == pos->hash) return 0;
 	}
 
