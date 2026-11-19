@@ -1736,8 +1736,8 @@ static void gen_king_moves(
 	Bitboard same_color_pieces = position->color_boards[side_to_move];
 	Bitboard opp_color_pieces = position->color_boards[side_to_move ^ 1u];
 
+	ASSERT(position->piece_boards[pt]);
 	int src = get_ls1b(position->piece_boards[pt]);
-	ASSERT(src);
 
 	// get legal targets
 	Bitboard targets = get_king_targets(src);
@@ -1786,8 +1786,8 @@ static void gen_tactical_king_moves(
 	Bitboard same_color_pieces = position->color_boards[side_to_move];
 	Bitboard opp_color_pieces = position->color_boards[side_to_move ^ 1u];
 
+	ASSERT(position->piece_boards[pt]);
 	int src = get_ls1b(position->piece_boards[pt]);
-	ASSERT(src);
 
 	// get legal targets
 	Bitboard targets = get_king_targets(src);
@@ -3163,7 +3163,7 @@ make_move_update_bitboards(position, move);
 /*======================================================================
  * Search
  *======================================================================*/
-#define MAX_HALFMOVES 50	// max halfmoves before position is a draw
+#define MAX_HALFMOVES 100	// max halfmoves before position is a draw
 static const int INF = 999999;
 
 // records position history for drawa by repetition checking
@@ -3210,47 +3210,53 @@ static int ab_nega(
 	ASSERT(pos);
 	ASSERT(pv);
 
-	// add position to history
-	hist->positions[hist->num_positions++] = pos->hash;
-
-	// check 50 move draw
-	int halfmoves = (int)get_halfmoves(pos);
-	if (halfmoves >= MAX_HALFMOVES) return 0;
 	// check for draw by repetition
-	// same position can occur only even number of halfmoves back
-	// 	and only up until the last pawn advance or capture
+	int halfmoves = (int)get_halfmoves(pos);
 	int hcount = hist->num_positions;
-	for (int i = hcount - 5; i >= 0 && hcount - i >= halfmoves; i-=2) {
+	for (int i = hcount - 4; i >= 0 && hcount - i <= halfmoves; i-=2) {
 		if (hist->positions[i] == pos->hash) return 0;
 	}
 
-	if (!depth)
-		return quiesce(pos, alpha, beta);
+	// probable draw if 100 moves with no captures or pawn advances
+	// need to check that position is not mate first
+	int fifty_move_draw = (halfmoves >= MAX_HALFMOVES);
+
+	// evaluate at depth == 0
+	if (!depth) return quiesce(pos, alpha, beta);
+
+	// add current position to history
+	hist->positions[hcount] = pos->hash;
+	hcount = ++hist->num_positions;
 
 	Move move_list[MOVE_LIST_SIZE];
 	int move_count = gen_pseudo_moves(move_list, pos);
-	PV_Line line = {0};
 	int legal_move_found = 0;
 
 	for (int i = 0; i < move_count; i++) {
 		Position copy_pos = *pos;
 		if (make_move(&copy_pos, move_list[i])) continue;
 
-
+		// legal move found
 		legal_move_found = 1;
+		if (fifty_move_draw) {
+			pv->num_moves = 0;
+			return 0;
+		}
+
+		// search next move
+		PV_Line line = {0};
 		int score = -ab_nega(&copy_pos, depth - 1, -beta, -alpha, &line, hist);
 
-		// remove last position from history
-		hist->num_positions--;
+		// reset history
+		hist->num_positions = hcount;
 
-		// raise alpha and update pvline
+		// check bounds, update pvline
 		if (score > alpha) {
 			alpha = score;
 			pv->moves[0] = move_list[i];
 			memcpy(pv->moves + 1, line.moves, line.num_moves * sizeof(Move));
 			pv->num_moves = line.num_moves + 1;
 		}
-		// fail soft cutoff
 		if (score >= beta) return score;
 	}
 
@@ -3264,6 +3270,13 @@ static int ab_nega(
 			return 0;
 		}
 		return -INF;
+	}
+
+	// check 50 move draw
+	// checkmate needs to be checked first
+	if (halfmoves >= MAX_HALFMOVES) {
+		pv->num_moves = 0;
+		return 0;
 	}
 
 	return alpha;
