@@ -3,7 +3,8 @@
 #include <stdio.h>
 
 #define STARTING_FEN "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
-#define TEST "3r4/ppp4p/8/nk6/3PRRP1/2P1K3/PP5P/8 w - - 1 26"
+#define REPETITION "6k1/6p1/6Q1/8/8/1qq5/qqq5/5K2 w - - 0 1"
+#define TEST "k7/3Q4/8/8/8/8/8/K2R4 w - - 99 1"
 #define MATE1 "1k6/ppp5/8/8/8/8/8/1K2R3 w - - 0 1"
 #define MATE0 "1k2R3/ppp5/8/8/8/8/8/1K6 b - - 0 1"
 #define MATE2 "1k2r3/ppp5/8/8/8/8/3R4/1K1R4 w - - 0 1"
@@ -12,8 +13,8 @@
 
 int main(int argc, char** argv) {
 	init_engine();
-	hash_test();
-	run_perft_validation();
+	// hash_test();
+	// run_perft_validation();
 	// run_perft(STARTING_FEN, 5);
 
 	/*
@@ -46,18 +47,16 @@ int main(int argc, char** argv) {
 
 
 
-	/*
 	// search test
 	Position pos = {0};
 	load_position_from_fen(TEST, &pos);
 
-	int depth = 12;
+	int depth = 6;
 	Search_Result sr = iterative_ab_search(&pos, depth);
 
 	print_position(&pos);
 	printf("eval:%d\n", sr.eval);
 	print_moves(sr.pv.moves, sr.pv.num_moves);
-	*/
 
 	return 0;
 }
