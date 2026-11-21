@@ -19,7 +19,7 @@
 #define NUM_PIECE_TYPES_PER_SIDE 6
 #define NUM_COLORS 2
 
-typedef uint64_t U64, Bitboard, Bitfield;
+typedef uint64_t U64, Bitboard, Bitfield, Hash;
 typedef struct {
 	Bitboard piece_boards[NUM_PIECE_TYPES];	
 	// piece bitboards
@@ -82,6 +82,11 @@ typedef struct {
 	int eval;
 	PV_Line pv;
 } Search_Result;
+
+/* Debugging Stuff */
+long long int TT_CUTOFFS;
+long long int TT_QUERIES;
+long long int TT_HITS;
 
 /*======================================================================
  * Functions

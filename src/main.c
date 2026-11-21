@@ -17,10 +17,9 @@ int main(int argc, char** argv) {
 	// run_perft_validation();
 	// run_perft(STARTING_FEN, 5);
 
-	/*
 	// play game
 	Position pos = {0};
-	load_position_from_fen(TEST, &pos);
+	load_position_from_fen(STARTING_FEN, &pos);
 	Move move_list[256];
 	char* buff[20];
 	int depth = 8;
@@ -43,20 +42,21 @@ int main(int argc, char** argv) {
 		printf("eval:%d\n", sr.eval);
 		print_moves(sr.pv.moves, 1);
 	}
-	*/
 
-
-
+	/*
 	// search test
 	Position pos = {0};
-	load_position_from_fen(TEST, &pos);
+	load_position_from_fen(STARTING_FEN, &pos);
 
-	int depth = 6;
+	int depth = 9;
 	Search_Result sr = iterative_ab_search(&pos, depth);
 
 	print_position(&pos);
 	printf("eval:%d\n", sr.eval);
 	print_moves(sr.pv.moves, sr.pv.num_moves);
+	*/
+
+	// printf("\nTT stats\nqueries: %lli\nhits: %lli\ncuts: %lli\n", TT_QUERIES, TT_HITS, TT_CUTOFFS);
 
 	return 0;
 }

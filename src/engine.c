@@ -3160,8 +3160,65 @@ make_move_update_bitboards(position, move);
 }
 */
 
+
+/*======================================================================
+ * Transposition Table
+ *======================================================================*/
+#define TT_KEY_BITS 26
+#define TT_SIZE 67108864 // (2^24, 24 bit key)
+static const Hash TT_KEY_MASK = (((Hash)1u) << TT_KEY_BITS) - 1;
+
+// stored in node type
+typedef enum {
+	EMPTY_ENTRY = 0,		// TT_Entry is not set
+	PV_NODE,
+	ALL_NODE, 
+	CUT_NODE
+} TTNode_Type;
+
+typedef struct {
+	Hash hash;			// position hash
+	unsigned char node_type;	// see defines
+	unsigned char depth;		// depth to search of position
+	int score;			// position eval
+	Move best_move;			// best move in position, 0 if none
+} TT_Entry;
+
+// global transposition table
+static TT_Entry TTABLE[TT_SIZE];
+
+// wipes transposition table
+// call during engine init
+static void init_tt(void) {
+	for (int i = 0; i < TT_SIZE; i++)
+		TTABLE[i] = (TT_Entry) {0};
+}
+
+// query pointer to entry, return NULL if none found
+static const TT_Entry* query_tt(Hash hash) {
+	ASSERT((hash & TT_KEY_MASK) < TT_SIZE);
+	TT_Entry* tte = TTABLE + (hash & TT_KEY_MASK);
+	if (tte->hash == hash)
+		return tte;
+	return NULL;
+}
+
+static void tt_add(Hash hash, TTNode_Type nt, int depth, int score, Move m) {
+	ASSERT((hash & TT_KEY_MASK) < TT_SIZE);
+	TTABLE[hash & TT_KEY_MASK] = (TT_Entry) {
+		hash, 
+		(unsigned char)nt, 
+		(unsigned char)depth, 
+		score, 
+		m};
+}
+
 /*======================================================================
  * Search
+ *
+ * find optimal path using alpha beta pruning
+ * uses a transposition table, asp windows, iterative deepening,
+ * 	and quiet search
  *======================================================================*/
 #define MAX_HALFMOVES 100	// max halfmoves before position is a draw
 static const int INF = 999999;
@@ -3210,11 +3267,64 @@ static int ab_nega(
 	ASSERT(pos);
 	ASSERT(pv);
 
+	int legal_move_found = 0;
+	const Move* best_move = NULL;
+
 	// check for draw by repetition
 	int halfmoves = (int)get_halfmoves(pos);
 	int hcount = hist->num_positions;
 	for (int i = hcount - 4; i >= 0 && hcount - i <= halfmoves; i-=2) {
 		if (hist->positions[i] == pos->hash) return 0;
+	}
+
+	Move move_list[MOVE_LIST_SIZE];
+	int move_count = 0;
+
+	// query tt table to update bounds, score, first move
+	const TT_Entry* tt = query_tt(pos->hash);
+	// TT_QUERIES++;
+	if (tt) {
+		// TT_HITS++;
+		// insert best move at front of list
+		// ther will be a repeat move, but the cost should be low as the move could be
+		// in the tt table when it is encountered again
+		Move ttmove = tt->best_move;
+		move_list[move_count] = ttmove;
+		move_count += !!ttmove;
+
+		if (tt->depth >= depth) {
+			TTNode_Type nt = tt->node_type;
+			int score = tt->score;
+
+			// cut or improve alpha
+			switch (nt) {
+				case CUT_NODE: 
+					if (score >= beta) {
+						// TT_CUTOFFS++;
+						return score; 
+					}
+					alpha = score;
+					// cut node best move will be first in list
+					best_move = move_list;
+					pv->moves[0] = ttmove;
+					pv->num_moves = 1;
+					break;
+
+				case PV_NODE: 
+					// TT_CUTOFFS++;
+					pv->moves[0] = ttmove;
+					pv->num_moves = 1;
+					return score; 
+					break;
+
+				case ALL_NODE: 
+					if (score <= alpha) {
+						// TT_CUTOFFS++;
+						return alpha; 
+					}
+					break;
+			}
+		}
 	}
 
 	// probable draw if 100 moves with no captures or pawn advances
@@ -3228,10 +3338,8 @@ static int ab_nega(
 	hist->positions[hcount] = pos->hash;
 	hcount = ++hist->num_positions;
 
-	Move move_list[MOVE_LIST_SIZE];
-	int move_count = gen_pseudo_moves(move_list, pos);
-	int legal_move_found = 0;
-
+	// search moves
+	move_count += gen_pseudo_moves(move_list + move_count, pos);
 	for (int i = 0; i < move_count; i++) {
 		Position copy_pos = *pos;
 		if (make_move(&copy_pos, move_list[i])) continue;
@@ -3252,12 +3360,16 @@ static int ab_nega(
 
 		// check bounds, update pvline
 		if (score > alpha) {
+			best_move = move_list + i;
 			alpha = score;
 			pv->moves[0] = move_list[i];
 			memcpy(pv->moves + 1, line.moves, line.num_moves * sizeof(Move));
 			pv->num_moves = line.num_moves + 1;
 		}
-		if (score >= beta) return score;
+		if (score >= beta) {
+			tt_add(pos->hash, CUT_NODE, depth, score, move_list[i]);
+			return score;
+		}
 	}
 
 	// stalemate if king is not attacked, otherwise checkmate
@@ -3278,6 +3390,9 @@ static int ab_nega(
 		pv->num_moves = 0;
 		return 0;
 	}
+
+	if (best_move)  tt_add(pos->hash, PV_NODE, depth, alpha, *best_move);
+	else		tt_add(pos->hash, ALL_NODE, depth, alpha, 0);
 
 	return alpha;
 }
@@ -3352,6 +3467,7 @@ void init_engine(void) {
 	init_targets();
 	init_psq();
 	init_zobrist_keys();
+	init_tt();
 }
 
 
