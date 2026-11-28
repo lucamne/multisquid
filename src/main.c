@@ -47,13 +47,12 @@ int main(int argc, char** argv) {
 	*/
 
 	// search test
-	Position pos = {0};
-	load_position_from_fen(TEST, &pos);
+	load_position_from_fen(TEST, &MULTI.pos);
 
-	int depth = 15;
-	Search_Result sr = iterative_ab_search(&pos, depth);
+	int depth = 10;
+	Search_Result sr = iterative_ab_search(&MULTI.pos, depth);
 
-	print_position(&pos);
+	print_position(&MULTI.pos);
 	printf("eval:%d\n", sr.eval);
 	print_moves(sr.pv.moves, sr.pv.num_moves);
 
