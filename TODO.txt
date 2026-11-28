@@ -7,20 +7,27 @@ Design
 - lazy SMP on basic ab pruning (asp windows, iterative deepening, shared tt table)
 
 TODO
+1. clean up
+2. create uci shell
+3. optimize
+	- test make unmake
+		- if not making/unmaking add fullmoves and side to bitfield
+	- test struct v bitfield
+	- standard optimizing stuff
+4. multi-thread the search
+5. deep clean (split up code)
+6. elo testing
+
 - testing
+	- test bitfield vs struct for non bitboards
 	- test copy-make vs make-unmake
 	- formal elo testing 
 	- write uci shell
 - position
-	- ep logic needs to be improved for both move making
-		and for hashing
 	- add side to move and fullmoves to bitfield encoding
 - search
-	- zobrist hashing
 	- transposition table
 		- move ordering
-	- 3fold repetition, 50 move rule
-	- negascout 
 	- clean up asp windows
 	- it seems like the engine will head straight for mate
 		if it does not, will have to fix

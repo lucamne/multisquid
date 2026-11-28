@@ -19,11 +19,12 @@
 #define NUM_PIECE_TYPES_PER_SIDE 6
 #define NUM_COLORS 2
 
-typedef uint64_t U64, Bitboard, Bitfield;
+typedef uint64_t U64, Bitboard, Bitfield, Hash;
+
 typedef struct {
-	Bitboard piece_boards[NUM_PIECE_TYPES];	
 	// piece bitboards
 	// square mapping reference is provided in square_mapping.xlsx
+	Bitboard piece_boards[NUM_PIECE_TYPES];	
 
 	/* Incrementally Updated on Make/Unmake Move */
 	unsigned int side_to_move;
@@ -83,36 +84,52 @@ typedef struct {
 	PV_Line pv;
 } Search_Result;
 
+/* Transposition Table */
+// stored in node type
+typedef enum {
+	EMPTY_ENTRY = 0,		// TT_Entry is not set
+	PV_NODE,
+	ALL_NODE, 
+	CUT_NODE
+} TTNode_Type;
+
+typedef struct {
+	Hash hash;			// position hash
+	unsigned char node_type;	// see defines
+	unsigned char depth;		// depth to search of position
+	int score;			// position eval
+	Move best_move;			// best move in position, 0 if none
+} TT_Entry;
+
+/*** Global Multisquid Engine Memory ***/
+struct Multisquid {
+	Position pos;
+
+	// shared hash table
+	TT_Entry* tt;
+	int tt_size;
+	Hash tt_key;
+} MULTI;
+// this memory contains all state information for the engine
+// initialized during init_engine()
+// careful when messing with it :)
+
 /*======================================================================
  * Functions
  *======================================================================*/
 Search_Result iterative_ab_search(const Position* position, int depth);
 // run an iteratively deepening alpha-beta search to depth
-void init_engine(void);
-// initializes engine
+void init_engine(U64 max_tt_bytes);
+// initializes engine with a maximum transposition table size in bytes
 // MUST be called before using any other engine functions
-int gen_pseudo_moves(Move* move_list, const Position* position);
-// generate pseudo legal moves from position and store in move_list
-// move_list memory should be handled by calller and be adequately large
-// return number of moves in list
-int gen_pseudo_tactical_moves(Move* move_list, const Position* position);
-// generate pseudo legal TACTICAL moves from position and store in move_list
-// move_list memory should be handled by calller and be adequately large
-// return number of moves in list
 int load_position_from_fen(const char* fen, Position* position);
 // populate supplied Position from fen
 // return 0 on success; 1 on ill-formatted fen
-int make_move(Position* position, Move move);
-// Apply move to position
-// Return 0 on move applied, 1 on move is not legal (king in check)
 void print_moves(Move* move_list, int move_count);
 // crude move list print out
 // used for testing right now
 void print_position(const Position* position);
 // prints the supplied Position to stdout
-long long int run_perft(const char* fen, int max_depth);
-// run perft test on position given by fen to max depth
-// return nodes found at max depth
 void run_perft_validation(void);
 // run a perft validation sweet to validate move generator
 void hash_test(void);
