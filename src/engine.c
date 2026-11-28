@@ -2636,7 +2636,10 @@ static Bitboard get_xray_targets(const Position* position, int side) {
 	return xrays;
 }
 
-int gen_pseudo_moves(Move* move_list, const Position* position) {
+// generate pseudo legal moves from position and store in move_list
+// move_list memory should be handled by calller and be adequately large
+// return number of moves in list
+static int gen_pseudo_moves(Move* move_list, const Position* position) {
 	ASSERT(move_list);
 	ASSERT(position);
 
@@ -2715,7 +2718,7 @@ int gen_pseudo_moves(Move* move_list, const Position* position) {
 // generate pseudo legal TACTICAL moves from position and store in move_list
 // move_list memory should be handled by calller and be adequately large
 // return number of moves in list
-int gen_pseudo_tactical_moves(Move* move_list, const Position* position) {
+static int gen_pseudo_tactical_moves(Move* move_list, const Position* position) {
 	ASSERT(move_list);
 	ASSERT(position);
 
@@ -3043,7 +3046,9 @@ static int is_square_attacked(const Position* position, int square, int side) {
 	return 0;
 }
 
-int make_move(Position* position, Move move) {
+// Apply move to position
+// Return 0 on move applied, 1 on move is not legal (king in check)
+static int make_move(Position* position, Move move) {
 	ASSERT(position);
 
 	Piece_Type src_pt = get_move_src_pt(move);
@@ -3164,48 +3169,39 @@ make_move_update_bitboards(position, move);
 /*======================================================================
  * Transposition Table
  *======================================================================*/
-#define TT_KEY_BITS 26
-#define TT_SIZE 67108864 // (2^24, 24 bit key)
-static const Hash TT_KEY_MASK = (((Hash)1u) << TT_KEY_BITS) - 1;
+// init global shared transposition table of size <= max_bytes
+// table will always have at least one entry
+// zero all entries, can be called again to wipe and adjust table size
+static void init_tt(U64 max_bytes) {
+	// free previous transposition table
+	if (MULTI.tt) free(MULTI.tt);
 
-// stored in node type
-typedef enum {
-	EMPTY_ENTRY = 0,		// TT_Entry is not set
-	PV_NODE,
-	ALL_NODE, 
-	CUT_NODE
-} TTNode_Type;
+	// compute max hash table size
+	U64 max_entries = max_bytes / sizeof(TT_Entry);
 
-typedef struct {
-	Hash hash;			// position hash
-	unsigned char node_type;	// see defines
-	unsigned char depth;		// depth to search of position
-	int score;			// position eval
-	Move best_move;			// best move in position, 0 if none
-} TT_Entry;
+	// find largest n where 2^n <= max_entries
+	// n-1 = number of bits in hash key, 2^(n-1) = hash table entries
+	unsigned int n = 0;
+	while (((U64)1u << ++n) <= max_entries);
+	U64 t_size = (U64)1u << (n - 1);
 
-// global transposition table
-static TT_Entry TTABLE[TT_SIZE];
-
-// wipes transposition table
-// call during engine init
-static void init_tt(void) {
-	for (int i = 0; i < TT_SIZE; i++)
-		TTABLE[i] = (TT_Entry) {0};
+	MULTI.tt = calloc(t_size, sizeof(TT_Entry));
+	MULTI.tt_size = (int)t_size;
+	MULTI.tt_key = t_size - 1u;
 }
 
 // query pointer to entry, return NULL if none found
 static const TT_Entry* query_tt(Hash hash) {
-	ASSERT((hash & TT_KEY_MASK) < TT_SIZE);
-	TT_Entry* tte = TTABLE + (hash & TT_KEY_MASK);
+	ASSERT((hash & MULTI.tt_key) < MULTI.tt_size);
+	TT_Entry* tte = MULTI.tt + (hash & MULTI.tt_key);
 	if (tte->hash == hash)
 		return tte;
 	return NULL;
 }
 
 static void tt_add(Hash hash, TTNode_Type nt, int depth, int score, Move m) {
-	ASSERT((hash & TT_KEY_MASK) < TT_SIZE);
-	TTABLE[hash & TT_KEY_MASK] = (TT_Entry) {
+	ASSERT((hash & MULTI.tt_key) < MULTI.tt_size);
+	MULTI.tt[hash & MULTI.tt_key] = (TT_Entry) {
 		hash, 
 		(unsigned char)nt, 
 		(unsigned char)depth, 
@@ -3229,6 +3225,7 @@ typedef struct {
 	int num_positions;
 } History;
 
+// recursively look for a position with no captures or promotions, then evaluate
 static int quiesce(
 		const Position* pos, 
 		int alpha, 
@@ -3236,6 +3233,8 @@ static int quiesce(
 
 	ASSERT(pos);
 
+	// get starting eval and assume there is a move
+	// that does not make the position worse allowing early cutoffs
 	int stand_pat = eval(pos);
 	if (stand_pat >= beta) return stand_pat;
 	if (stand_pat > alpha) alpha = stand_pat;
@@ -3243,6 +3242,7 @@ static int quiesce(
 	Move move_list[MOVE_LIST_SIZE];
 	int move_count = gen_pseudo_tactical_moves(move_list, pos);
 
+	// make and evaluate tactical moves
 	for (int i = 0; i < move_count; i++) {
 		Position copy_pos = *pos;
 		if (make_move(&copy_pos, move_list[i])) continue;
@@ -3256,6 +3256,7 @@ static int quiesce(
 	return stand_pat;
 }
 
+// recursive implementation of alpha beta pruning using negamax framework
 static int ab_nega(
 		const Position* pos, 
 		int depth, 
@@ -3266,7 +3267,7 @@ static int ab_nega(
 
 	ASSERT(pos);
 	ASSERT(pv);
-
+	
 	int legal_move_found = 0;
 	const Move* best_move = NULL;
 
@@ -3277,16 +3278,18 @@ static int ab_nega(
 		if (hist->positions[i] == pos->hash) return 0;
 	}
 
+	// add current position to history
+	hist->positions[hcount] = pos->hash;
+	hcount = ++hist->num_positions;
+
 	Move move_list[MOVE_LIST_SIZE];
 	int move_count = 0;
 
 	// query tt table to update bounds, score, first move
 	const TT_Entry* tt = query_tt(pos->hash);
-	// TT_QUERIES++;
 	if (tt) {
-		// TT_HITS++;
 		// insert best move at front of list
-		// ther will be a repeat move, but the cost should be low as the move could be
+		// there will be a repeat move, but the cost should be low as the move could be
 		// in the tt table when it is encountered again
 		Move ttmove = tt->best_move;
 		move_list[move_count] = ttmove;
@@ -3299,19 +3302,17 @@ static int ab_nega(
 			// cut or improve alpha
 			switch (nt) {
 				case CUT_NODE: 
+					pv->moves[0] = ttmove;
+					pv->num_moves = 1;
 					if (score >= beta) {
-						// TT_CUTOFFS++;
 						return score; 
 					}
 					alpha = score;
 					// cut node best move will be first in list
 					best_move = move_list;
-					pv->moves[0] = ttmove;
-					pv->num_moves = 1;
 					break;
 
 				case PV_NODE: 
-					// TT_CUTOFFS++;
 					pv->moves[0] = ttmove;
 					pv->num_moves = 1;
 					return score; 
@@ -3319,7 +3320,6 @@ static int ab_nega(
 
 				case ALL_NODE: 
 					if (score <= alpha) {
-						// TT_CUTOFFS++;
 						return alpha; 
 					}
 					break;
@@ -3327,16 +3327,12 @@ static int ab_nega(
 		}
 	}
 
-	// probable draw if 100 moves with no captures or pawn advances
-	// need to check that position is not mate first
-	int fifty_move_draw = (halfmoves >= MAX_HALFMOVES);
-
 	// evaluate at depth == 0
 	if (!depth) return quiesce(pos, alpha, beta);
 
-	// add current position to history
-	hist->positions[hcount] = pos->hash;
-	hcount = ++hist->num_positions;
+	// probable draw if 100 moves with no captures or pawn advances
+	// need to check that position is not mate first
+	int fifty_move_draw = (halfmoves >= MAX_HALFMOVES);
 
 	// search moves
 	move_count += gen_pseudo_moves(move_list + move_count, pos);
@@ -3366,6 +3362,7 @@ static int ab_nega(
 			memcpy(pv->moves + 1, line.moves, line.num_moves * sizeof(Move));
 			pv->num_moves = line.num_moves + 1;
 		}
+		// beta cutoff
 		if (score >= beta) {
 			tt_add(pos->hash, CUT_NODE, depth, score, move_list[i]);
 			return score;
@@ -3397,6 +3394,7 @@ static int ab_nega(
 	return alpha;
 }
 
+// launch an alpha beta search of position to supplied depth
 static Search_Result ab_search(
 		const Position* position, 
 		int depth, 
@@ -3408,7 +3406,6 @@ static Search_Result ab_search(
 
 	PV_Line pvline = {0};
 	Search_Result sr = {0};
-
 	History hist = {0};
 
 	sr.eval = ab_nega(position, depth, alpha, beta, &pvline, &hist);
@@ -3417,6 +3414,7 @@ static Search_Result ab_search(
 	return sr;
 }
 
+// launch an iteratively deepening alpha beta search of position to depth
 Search_Result iterative_ab_search(const Position* position, int depth) {
 	ASSERT(position);
 	ASSERT(depth);
@@ -3427,7 +3425,6 @@ Search_Result iterative_ab_search(const Position* position, int depth) {
 	int base = 0;
 	int alpha_win = -ASP_WIN;
 	int beta_win = ASP_WIN;
-
 
 	sr = ab_search(position, 1, -INF, INF);
 
@@ -3463,11 +3460,19 @@ Search_Result iterative_ab_search(const Position* position, int depth) {
 /*======================================================================
  * Initialization
  *======================================================================*/
-void init_engine(void) {
+void init_engine(U64 max_tt_bytes) {
+	// "constants" that are initialized at runtime
 	init_targets();
 	init_psq();
 	init_zobrist_keys();
-	init_tt();
+
+	// init transposition table
+	ASSERT(!MULTI.tt);
+	MULTI.tt = NULL;
+	init_tt(max_tt_bytes);
+
+	// zero position
+	MULTI.pos = (Position){0};
 }
 
 
@@ -3613,7 +3618,9 @@ static long long int perft(Position* position, int depth) {
 	return node_count;
 }
 
-long long int run_perft(const char* fen, int max_depth) {
+// run perft test on position given by fen to max depth
+// return nodes found at max depth
+static long long int run_perft(const char* fen, int max_depth) {
 	Position position = {0};
 	load_position_from_fen(fen, &position);
 
